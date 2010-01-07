@@ -54,4 +54,6 @@ Rails::Initializer.run do |config|
   # Define your email configuration in email.yml instead.
   # It will automatically turn deliveries on
   config.action_mailer.perform_deliveries = false
+
+  config.action_controller.session = { :key => "_myapp_session", :secret => "bughunters_4c442de16789952dfe28133dc838de54" }
 end
