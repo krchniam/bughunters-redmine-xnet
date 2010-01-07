@@ -1,5 +1,5 @@
 set :application, "bughunters"
-set :repository, "git://github.com/draxberg/bughunters-redmine.git"
+set :repository, "git://github.com/draxberg/bughunters-redmine-xnet.git"
 set :scm, "git"
 
 role :web, "server3.railshosting.cz"
