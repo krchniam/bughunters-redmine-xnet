@@ -13,8 +13,7 @@ set :use_sudo, false
 
 task :after_update_code, :roles => [:app, :db] do
   run "ln -nfs #{shared_path}/config/database.yml #{release_path}/config/database.yml"
-  run "cd #{release_path}"
-  run "rake config/initilizers/session_store.rb"
+  run "cd #{release_path} && rake config/initilizers/session_store.rb"
 end
 
 
