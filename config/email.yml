@@ -3,20 +3,14 @@
 production:
   delivery_method: :smtp
   smtp_settings:
-    address: smtp.inmail.sk
+    address: smtp-out.xnet.cz
     port: 25
-    domain: bughunters.heroku.com
-    authentication: :login
-    user_name: "bughunters@inmail.sk"
-    password: "bug_hunter"
+    domain: bughunters.free.railshosting.cz
 
 development:
   delivery_method: :smtp
   smtp_settings:
-    address: smtp.inmail.sk
+    address: smtp-out.xnet.cz
     port: 25
-    domain: bughunters.heroku.com
-    authentication: :login
-    user_name: "bughunters@inmail.sk"
-    password: "bug_hunter"
+    domain: bughunters.free.railshosting.cz
 
