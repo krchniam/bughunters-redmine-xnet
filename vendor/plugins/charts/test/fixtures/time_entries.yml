@@ -1,0 +1,181 @@
+--- 
+charts_time_entries_001:
+  created_on: <%= 39.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 39.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 39.day.ago.to_date.to_s %>
+  tyear: <%= 39.day.ago.to_date.year %>
+  tweek: <%= 39.day.ago.to_date.month %>
+  tmonth: <%= 39.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15045
+  issue_id: 15041
+  user_id: 15042
+  id: 15041
+  hours: 4.25
+  comments: Time
+charts_time_entries_002:
+  created_on: <%= 38.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 38.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 38.day.ago.to_date.to_s %>
+  tyear: <%= 38.day.ago.to_date.year %>
+  tweek: <%= 38.day.ago.to_date.month %>
+  tmonth: <%= 38.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15046
+  issue_id: 15041
+  user_id: 15043
+  id: 15042
+  hours: 1.3
+  comments: Time
+charts_time_entries_003:
+  created_on: <%= 8.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 8.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 8.day.ago.to_date.to_s %>
+  tyear: <%= 8.day.ago.to_date.year %>
+  tweek: <%= 8.day.ago.to_date.month %>
+  tmonth: <%= 8.day.ago.to_date.day %>
+  project_id: 15042
+  activity_id: 15045
+  issue_id: 15042
+  user_id: 15043
+  id: 15043
+  hours: 7.3
+  comments: Time
+charts_time_entries_004:
+  created_on: <%= 8.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 8.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 8.day.ago.to_date.to_s %>
+  tyear: <%= 8.day.ago.to_date.year %>
+  tweek: <%= 8.day.ago.to_date.month %>
+  tmonth: <%= 8.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15046
+  issue_id: 15043
+  user_id: 15043
+  id: 15044
+  hours: 3.3
+  comments: Time
+charts_time_entries_005:
+  created_on: <%= 8.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 8.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 8.day.ago.to_date.to_s %>
+  tyear: <%= 8.day.ago.to_date.year %>
+  tweek: <%= 8.day.ago.to_date.month %>
+  tmonth: <%= 8.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15045
+  issue_id: 15043
+  user_id: 15042
+  id: 15045
+  hours: 4.3
+  comments: Time
+charts_time_entries_006:
+  created_on: <%= 6.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 6.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 6.day.ago.to_date.to_s %>
+  tyear: <%= 6.day.ago.to_date.year %>
+  tweek: <%= 6.day.ago.to_date.month %>
+  tmonth: <%= 6.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15045
+  issue_id: 15044
+  user_id: 15043
+  id: 15046
+  hours: 2.3
+  comments: Time
+charts_time_entries_007:
+  created_on: <%= 5.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 5.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 5.day.ago.to_date.to_s %>
+  tyear: <%= 5.day.ago.to_date.year %>
+  tweek: <%= 5.day.ago.to_date.month %>
+  tmonth: <%= 5.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15045
+  issue_id: 15044
+  user_id: 15043
+  id: 15047
+  hours: 4.3
+  comments: Time
+charts_time_entries_008:
+  created_on: <%= 5.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 5.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 5.day.ago.to_date.to_s %>
+  tyear: <%= 5.day.ago.to_date.year %>
+  tweek: <%= 5.day.ago.to_date.month %>
+  tmonth: <%= 5.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15045
+  issue_id: 15044
+  user_id: 15042
+  id: 15048
+  hours: 2.3
+  comments: Time
+charts_time_entries_009:
+  created_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 2.day.ago.to_date.to_s %>
+  tyear: <%= 2.day.ago.to_date.year %>
+  tweek: <%= 2.day.ago.to_date.month %>
+  tmonth: <%= 2.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15045
+  issue_id: 15045
+  user_id: 15042
+  id: 15049
+  hours: 3.3
+  comments: Time
+charts_time_entries_010:
+  created_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 2.day.ago.to_date.to_s %>
+  tyear: <%= 2.day.ago.to_date.year %>
+  tweek: <%= 2.day.ago.to_date.month %>
+  tmonth: <%= 2.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15046
+  issue_id: 15045
+  user_id: 15043
+  id: 15050
+  hours: 3.3
+  comments: Time
+charts_time_entries_011:
+  created_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 1.day.ago.to_date.to_s %>
+  tyear: <%= 1.day.ago.to_date.year %>
+  tweek: <%= 1.day.ago.to_date.month %>
+  tmonth: <%= 1.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15046
+  issue_id: 15045
+  user_id: 15043
+  id: 15051
+  hours: 2.3
+  comments: Time
+charts_time_entries_012:
+  created_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 1.day.ago.to_date.to_s %>
+  tyear: <%= 1.day.ago.to_date.year %>
+  tweek: <%= 1.day.ago.to_date.month %>
+  tmonth: <%= 1.day.ago.to_date.day %>
+  project_id: 15041
+  activity_id: 15045
+  user_id: 15041
+  id: 15052
+  hours: 5.1
+  comments: Time
+charts_time_entries_013:
+  created_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  spent_on: <%= 1.day.ago.to_date.to_s %>
+  tyear: <%= 1.day.ago.to_date.year %>
+  tweek: <%= 1.day.ago.to_date.month %>
+  tmonth: <%= 1.day.ago.to_date.day %>
+  project_id: 15043
+  activity_id: 15045
+  user_id: 15041
+  id: 15053
+  hours: 7
+  comments: Time

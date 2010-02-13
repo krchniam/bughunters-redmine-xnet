@@ -1,0 +1,21 @@
+--- 
+charts_issue_categories_001:
+  name: Category1
+  project_id: 15041
+  assigned_to_id: 15042
+  id: 15041
+charts_issue_categories_002:
+  name: Category2
+  project_id: 15041
+  assigned_to_id: 15043
+  id: 15042
+charts_issue_categories_003:
+  name: Category3
+  project_id: 15042
+  assigned_to_id: 15043
+  id: 15043
+charts_issue_categories_004:
+  name: Category4
+  project_id: 15043
+  assigned_to_id: 15043
+  id: 15044

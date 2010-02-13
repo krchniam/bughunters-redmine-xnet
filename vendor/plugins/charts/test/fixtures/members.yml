@@ -1,0 +1,33 @@
+--- 
+charts_members_001:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  project_id: 15041
+  <% unless defined?(MemberRole) %>
+  role_id: 15041
+  <% end %>
+  id: 15041
+  user_id: 15042
+charts_members_002:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  project_id: 15041
+  <% unless defined?(MemberRole) %>
+  role_id: 15041
+  <% end %>
+  id: 15042
+  user_id: 15043
+charts_members_003:
+  created_on: <%= 39.day.ago.to_date.to_s(:db) %>
+  project_id: 15042
+  <% unless defined?(MemberRole) %>
+  role_id: 15041
+  <% end %>
+  id: 15043
+  user_id: 15043
+charts_members_004:
+  created_on: <%= 39.day.ago.to_date.to_s(:db) %>
+  project_id: 15043
+  <% unless defined?(MemberRole) %>
+  role_id: 15041
+  <% end %>
+  id: 15044
+  user_id: 15043

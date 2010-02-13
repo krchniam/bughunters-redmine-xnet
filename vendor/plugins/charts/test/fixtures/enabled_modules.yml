@@ -1,0 +1,25 @@
+--- 
+charts_enabled_modules_001:
+  name: issue_tracking
+  project_id: 15041
+  id: 15041
+charts_enabled_modules_002:
+  name: time_tracking
+  project_id: 15041
+  id: 15042
+charts_enabled_modules_003:
+  name: charts
+  project_id: 15041
+  id: 15043
+charts_enabled_modules_004:
+  name: issue_tracking
+  project_id: 15043
+  id: 15044
+charts_enabled_modules_005:
+  name: time_tracking
+  project_id: 15043
+  id: 15045
+charts_enabled_modules_006:
+  name: charts
+  project_id: 15043
+  id: 15046

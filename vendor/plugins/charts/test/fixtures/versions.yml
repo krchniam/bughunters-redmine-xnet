@@ -1,0 +1,17 @@
+--- 
+charts_versions_001:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  name: "1.0"
+  project_id: 15041
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  id: 15041
+  description: Beta
+  effective_date: <%= 10.day.ago.to_date.to_s(:db) %>
+charts_versions_002:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  name: "2.0"
+  project_id: 15041
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  id: 15042
+  description: Stable release
+  effective_date: <%= 20.day.from_now.to_date.to_s(:db) %>
