@@ -1,0 +1,49 @@
+---
+charts_users_001:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  status: 1
+  last_login_on:
+  language: en
+  hashed_password: 4e4aeb7baaf0706bd670263fef42dad15763b608
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  admin: true
+  mail: rhill@somenet.foo
+  lastname: Hill
+  firstname: Robert
+  id: 15041
+  auth_source_id:
+  mail_notification: true
+  login: charts_rhill
+  type: User
+charts_users_002:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  status: 1
+  last_login_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  language: en
+  hashed_password: a9a653d4151fa2c081ba1ffc2c2726f3b80b7d7d
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  admin: false
+  mail: jsmith@somenet.foo
+  lastname: Smith
+  firstname: John
+  id: 15042
+  auth_source_id: 
+  mail_notification: true
+  login: charts_jsmith
+  type: User
+charts_users_003:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  status: 1
+  last_login_on: 
+  language: en
+  hashed_password: 7feb7657aa7a7bf5aef3414a5084875f27192415
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  admin: false
+  mail: dlopper@somenet.foo
+  lastname: Lopper
+  firstname: Dave
+  id: 15043
+  auth_source_id: 
+  mail_notification: true
+  login: charts_dlopper
+  type: User
