@@ -31,6 +31,9 @@ self_registration:
   default: '2'
 lost_password:
   default: 1
+password_min_length:
+  format: int
+  default: 4
 attachment_max_size:
   format: int
   default: 5120
@@ -61,6 +64,11 @@ protocol:
 feeds_limit:
   format: int
   default: 15
+# Maximum size of files that can be displayed
+# inline through the file viewer (in KB)
+file_max_size_displayed:
+  format: int
+  default: 512
 diff_max_lines_displayed:
   format: int
   default: 1500
@@ -77,6 +85,8 @@ autofetch_changesets:
   default: 1
 sys_api_enabled:
   default: 0
+sys_api_key:
+  default: ''
 commit_ref_keywords:
   default: 'refs,references,IssueID'
 commit_fix_keywords:
@@ -106,6 +116,8 @@ notified_events:
   default: 
   - issue_added
   - issue_updated
+mail_handler_body_delimiters:
+  default: ''
 mail_handler_api_enabled:
   default: 0
 mail_handler_api_key:
@@ -121,8 +133,25 @@ issue_list_default_columns:
   - updated_on
 display_subprojects_issues:
   default: 1
+issue_done_ratio:
+  default: 'issue_field'
 default_projects_public:
   default: 1
+default_projects_modules:
+  serialized: true
+  default: 
+  - issue_tracking
+  - time_tracking
+  - news
+  - documents
+  - files
+  - wiki
+  - repository
+  - boards
+# Role given to a non-admin user who creates a project
+new_project_user_role_id:
+  format: int
+  default: ''
 sequential_project_identifiers:
   default: 0
 # encodings used to convert repository files content to UTF-8
@@ -132,6 +161,9 @@ repositories_encodings:
 # encoding used to convert commit logs to UTF-8
 commit_logs_encoding:
   default: 'UTF-8'
+repository_log_display_limit:
+  format: int
+  default: 100
 ui_theme:
   default: ''
 emails_footer:
@@ -139,4 +171,12 @@ emails_footer:
     You have received this notification because you have either subscribed to it, or are involved in it.
     To change your notification preferences, please click here: http://hostname/my/account
 gravatar_enabled:  
+  default: 0
+openid:
+  default: 0
+gravatar_default:
+  default: ''
+start_of_week:
+  default: ''
+rest_api_enabled:
   default: 0

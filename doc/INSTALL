@@ -1,13 +1,13 @@
 == Redmine installation
 
 Redmine - project management software
-Copyright (C) 2006-2008  Jean-Philippe Lang
+Copyright (C) 2006-2010  Jean-Philippe Lang
 http://www.redmine.org/
 
 
 == Requirements
 
-* Ruby on Rails 2.1.2
+* Ruby on Rails 2.3.5
 * A database:
   * MySQL (tested with MySQL 5)
   * PostgreSQL (tested with PostgreSQL 8.1)
@@ -29,8 +29,10 @@ Optional:
 4. Create the database structure. Under the application main directory:
    rake db:migrate RAILS_ENV="production"
    It will create tables and an administrator account.
-
-5. Generate a session store secret. Run:
+   
+5. Generate a session store secret
+   Redmine stores session data in cookies by default, which requires
+   a secret to be generated. Run:
    rake config/initializers/session_store.rb
 
 6. Setting up permissions
