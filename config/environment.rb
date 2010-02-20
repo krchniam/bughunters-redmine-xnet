@@ -5,7 +5,7 @@
 # ENV['RAILS_ENV'] ||= 'production'
 
 # Specifies gem version of Rails to use when vendor/rails is not present
-RAILS_GEM_VERSION = '2.1.2' unless defined? RAILS_GEM_VERSION
+RAILS_GEM_VERSION = '2.3.5' unless defined? RAILS_GEM_VERSION
 
 # Bootstrap the Rails environment, frameworks, and default configuration
 require File.join(File.dirname(__FILE__), 'boot')
@@ -30,18 +30,13 @@ Rails::Initializer.run do |config|
   # (by default production uses :info, the others :debug)
   # config.log_level = :debug
 
-  # Use the database for sessions instead of the file system
-  # (create the session table with 'rake db:sessions:create')
-  # config.action_controller.session_store = :active_record_store
-  config.action_controller.session_store = :PStore
-
   # Enable page/fragment caching by setting a file-based store
   # (remember to create the caching directory and make it readable to the application)
   # config.action_controller.fragment_cache_store = :file_store, "#{RAILS_ROOT}/cache"
   
   # Activate observers that should always be running
   # config.active_record.observers = :cacher, :garbage_collector
-  config.active_record.observers = :message_observer
+  config.active_record.observers = :message_observer, :issue_observer, :journal_observer, :news_observer, :document_observer, :wiki_content_observer
 
   # Make Active Record use UTC-base instead of local time
   # config.active_record.default_timezone = :utc
@@ -55,5 +50,13 @@ Rails::Initializer.run do |config|
   # It will automatically turn deliveries on
   config.action_mailer.perform_deliveries = false
 
+  config.gem 'rubytree', :lib => 'tree'
+  
+  # Load any local configuration that is kept out of source control
+  # (e.g. gems, patches).
+  if File.exists?(File.join(File.dirname(__FILE__), 'additional_environment.rb'))
+    instance_eval File.read(File.join(File.dirname(__FILE__), 'additional_environment.rb'))
+  end
+  
   config.action_controller.session = { :key => "_myapp_session", :secret => "bughunters_4c442de16789952dfe28133dc838de54" }
 end
