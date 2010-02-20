@@ -56,7 +56,5 @@ Rails::Initializer.run do |config|
   # (e.g. gems, patches).
   if File.exists?(File.join(File.dirname(__FILE__), 'additional_environment.rb'))
     instance_eval File.read(File.join(File.dirname(__FILE__), 'additional_environment.rb'))
-  end
-  
-  config.action_controller.session = { :key => "_myapp_session", :secret => "bughunters_4c442de16789952dfe28133dc838de54" }
+  end  
 end
