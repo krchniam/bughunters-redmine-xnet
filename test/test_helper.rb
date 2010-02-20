@@ -19,8 +19,12 @@ ENV["RAILS_ENV"] ||= "test"
 require File.expand_path(File.dirname(__FILE__) + "/../config/environment")
 require 'test_help'
 require File.expand_path(File.dirname(__FILE__) + '/helper_testcase')
+require File.join(RAILS_ROOT,'test', 'mocks', 'open_id_authentication_mock.rb')
 
-class Test::Unit::TestCase
+require File.expand_path(File.dirname(__FILE__) + '/object_daddy_helpers')
+include ObjectDaddyHelpers
+
+class ActiveSupport::TestCase
   # Transactional fixtures accelerate your tests by wrapping each test method
   # in a transaction that's rolled back on completion.  This ensures that the
   # test database remains unchanged so your fixtures don't have to be reloaded
@@ -45,17 +49,17 @@ class Test::Unit::TestCase
   # Add more helper methods to be used by all tests here...
   
   def log_user(login, password)
-    get "/account/login"
+    User.anonymous
+    get "/login"
     assert_equal nil, session[:user_id]
     assert_response :success
     assert_template "account/login"
-    post "/account/login", :username => login, :password => password
-    assert_redirected_to "my/page"
+    post "/login", :username => login, :password => password
     assert_equal login, User.find(session[:user_id]).login
   end
   
-  def test_uploaded_file(name, mime)
-    ActionController::TestUploadedFile.new(Test::Unit::TestCase.fixture_path + "/files/#{name}", mime)
+  def uploaded_test_file(name, mime)
+    ActionController::TestUploadedFile.new(ActiveSupport::TestCase.fixture_path + "/files/#{name}", mime)
   end
   
   # Use a temporary directory for attachment related tests
@@ -63,5 +67,12 @@ class Test::Unit::TestCase
     Dir.mkdir "#{RAILS_ROOT}/tmp/test" unless File.directory?("#{RAILS_ROOT}/tmp/test")
     Dir.mkdir "#{RAILS_ROOT}/tmp/test/attachments" unless File.directory?("#{RAILS_ROOT}/tmp/test/attachments")
     Attachment.storage_path = "#{RAILS_ROOT}/tmp/test/attachments"
+  end
+  
+  def with_settings(options, &block)
+    saved_settings = options.keys.inject({}) {|h, k| h[k] = Setting[k].dup; h}
+    options.each {|k, v| Setting[k] = v}
+    yield
+    saved_settings.each {|k, v| Setting[k] = v}
   end
 end

@@ -16,6 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class SettingsController < ApplicationController
+  layout 'admin'
+  
   before_filter :require_admin
 
   def index
@@ -24,7 +26,7 @@ class SettingsController < ApplicationController
   end
 
   def edit
-    @notifiables = %w(issue_added issue_updated news_added document_added file_added message_posted)
+    @notifiables = %w(issue_added issue_updated news_added document_added file_added message_posted wiki_content_added wiki_content_updated)
     if request.post? && params[:settings] && params[:settings].is_a?(Hash)
       settings = (params[:settings] || {}).dup.symbolize_keys
       settings.each do |name, value|
@@ -41,7 +43,7 @@ class SettingsController < ApplicationController
     @deliveries = ActionMailer::Base.perform_deliveries
 
     @guessed_host_and_path = request.host_with_port.dup
-    @guessed_host_and_path << ('/'+ request.relative_url_root.gsub(%r{^\/}, '')) unless request.relative_url_root.blank?
+    @guessed_host_and_path << ('/'+ Redmine::Utils.relative_url_root.gsub(%r{^\/}, '')) unless Redmine::Utils.relative_url_root.blank?
   end
 
   def plugin

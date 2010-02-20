@@ -37,7 +37,7 @@ namespace :redmine do
                           'closed' => closed_status
                           }
 
-        priorities = Enumeration.get_values('IPRI')
+        priorities = IssuePriority.all
         DEFAULT_PRIORITY = priorities[0]
         PRIORITY_MAPPING = {'lowest' => priorities[0],
                             'low' => priorities[0],
@@ -128,7 +128,7 @@ namespace :redmine do
         end
 
         def content_type
-          Redmine::MimeType.of(filename) || ''
+          ''
         end
 
         def exist?
@@ -263,7 +263,7 @@ namespace :redmine do
           elsif TracPermission.find_by_username_and_action(username, 'developer')
             role = ROLE_MAPPING['developer']
           end
-          Member.create(:user => u, :project => @target_project, :role => role)
+          Member.create(:user => u, :project => @target_project, :roles => [role])
           u.reload
         end
         u
@@ -458,7 +458,7 @@ namespace :redmine do
 
         # Tickets
         print "Migrating tickets"
-          TracTicket.find(:all, :order => 'id ASC').each do |ticket|
+          TracTicket.find_each(:batch_size => 200) do |ticket|
           print '.'
           STDOUT.flush
           i = Issue.new :project => @target_project,
@@ -676,6 +676,7 @@ namespace :redmine do
           puts
           puts "This project already exists in your Redmine database."
           print "Are you sure you want to append data to this project ? [Y/n] "
+          STDOUT.flush
           exit if STDIN.gets.match(/^n$/i)
         end
         project.trackers << TRACKER_BUG unless project.trackers.include?(TRACKER_BUG)
@@ -726,6 +727,7 @@ namespace :redmine do
 
     puts "WARNING: a new project will be added to Redmine during this process."
     print "Are you sure you want to continue ? [y/N] "
+    STDOUT.flush
     break unless STDIN.gets.match(/^y$/i)
     puts
 
@@ -733,6 +735,7 @@ namespace :redmine do
       default = options[:default] || ''
       while true
         print "#{text} [#{default}]: "
+        STDOUT.flush
         value = STDIN.gets.chomp!
         value = default if value.blank?
         break if yield value
@@ -754,7 +757,10 @@ namespace :redmine do
     prompt('Trac database encoding', :default => 'UTF-8') {|encoding| TracMigrate.encoding encoding}
     prompt('Target project identifier') {|identifier| TracMigrate.target_project_identifier identifier}
     puts
-
+    
+    # Turn off email notifications
+    Setting.notified_events = []
+    
     TracMigrate.migrate
   end
 end

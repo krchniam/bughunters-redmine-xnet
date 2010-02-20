@@ -14,28 +14,37 @@ rescue LoadError
   # RMagick is not available
 end
 
+if RUBY_VERSION < '1.9'
+  require 'faster_csv'
+else
+  require 'csv'
+  FCSV = CSV
+end
+
 REDMINE_SUPPORTED_SCM = %w( Subversion Darcs Mercurial Cvs Bazaar Git Filesystem )
 
 # Permissions
 Redmine::AccessControl.map do |map|
   map.permission :view_project, {:projects => [:show, :activity]}, :public => true
   map.permission :search_project, {:search => :index}, :public => true
+  map.permission :add_project, {:projects => :add}, :require => :loggedin
   map.permission :edit_project, {:projects => [:settings, :edit]}, :require => :member
   map.permission :select_project_modules, {:projects => :modules}, :require => :member
-  map.permission :manage_members, {:projects => :settings, :members => [:new, :edit, :destroy]}, :require => :member
-  map.permission :manage_versions, {:projects => [:settings, :add_version], :versions => [:edit, :destroy]}, :require => :member
+  map.permission :manage_members, {:projects => :settings, :members => [:new, :edit, :destroy, :autocomplete_for_member]}, :require => :member
+  map.permission :manage_versions, {:projects => [:settings, :add_version], :versions => [:edit, :close_completed, :destroy]}, :require => :member
+  map.permission :add_subprojects, {:projects => :add}, :require => :member
   
   map.project_module :issue_tracking do |map|
     # Issue categories
     map.permission :manage_categories, {:projects => [:settings, :add_issue_category], :issue_categories => [:edit, :destroy]}, :require => :member
     # Issues
-    map.permission :view_issues, {:projects => [:changelog, :roadmap], 
+    map.permission :view_issues, {:projects => :roadmap, 
                                   :issues => [:index, :changes, :show, :context_menu],
                                   :versions => [:show, :status_by],
                                   :queries => :index,
-                                  :reports => :issue_report}, :public => true                    
-    map.permission :add_issues, {:issues => :new}
-    map.permission :edit_issues, {:issues => [:edit, :reply, :bulk_edit]}
+                                  :reports => :issue_report}
+    map.permission :add_issues, {:issues => [:new, :update_form]}
+    map.permission :edit_issues, {:issues => [:edit, :reply, :bulk_edit, :update_form]}
     map.permission :manage_issue_relations, {:issue_relations => [:new, :destroy]}
     map.permission :add_issue_notes, {:issues => [:edit, :reply]}
     map.permission :edit_issue_notes, {:journals => :edit}, :require => :loggedin
@@ -51,6 +60,7 @@ Redmine::AccessControl.map do |map|
     # Watchers
     map.permission :view_issue_watchers, {}
     map.permission :add_issue_watchers, {:watchers => :new}
+    map.permission :delete_issue_watchers, {:watchers => :destroy}
   end
   
   map.project_module :time_tracking do |map|
@@ -58,6 +68,7 @@ Redmine::AccessControl.map do |map|
     map.permission :view_time_entries, :timelog => [:details, :report]
     map.permission :edit_time_entries, {:timelog => [:edit, :destroy]}, :require => :member
     map.permission :edit_own_time_entries, {:timelog => [:edit, :destroy]}, :require => :loggedin
+    map.permission :manage_project_activities, {:projects => [:save_activities, :reset_activities]}, :require => :member
   end
   
   map.project_module :news do |map|
@@ -132,7 +143,7 @@ Redmine::MenuManager.map :project_menu do |menu|
   menu.push :overview, { :controller => 'projects', :action => 'show' }
   menu.push :activity, { :controller => 'projects', :action => 'activity' }
   menu.push :roadmap, { :controller => 'projects', :action => 'roadmap' }, 
-              :if => Proc.new { |p| p.versions.any? }
+              :if => Proc.new { |p| p.shared_versions.any? }
   menu.push :issues, { :controller => 'issues', :action => 'index' }, :param => :project_id, :caption => :label_issue_plural
   menu.push :new_issue, { :controller => 'issues', :action => 'new' }, :param => :project_id, :caption => :label_issue_new,
               :html => { :accesskey => Redmine::AccessKeys.key_for(:new_issue) }
@@ -142,7 +153,7 @@ Redmine::MenuManager.map :project_menu do |menu|
               :if => Proc.new { |p| p.wiki && !p.wiki.new_record? }
   menu.push :boards, { :controller => 'boards', :action => 'index', :id => nil }, :param => :project_id,
               :if => Proc.new { |p| p.boards.any? }, :caption => :label_board_plural
-  menu.push :files, { :controller => 'projects', :action => 'list_files' }, :caption => :label_attachment_plural
+  menu.push :files, { :controller => 'projects', :action => 'list_files' }, :caption => :label_file_plural
   menu.push :repository, { :controller => 'repositories', :action => 'show' },
               :if => Proc.new { |p| p.repository && !p.repository.new_record? }
   menu.push :settings, { :controller => 'projects', :action => 'settings' }, :last => true
@@ -156,6 +167,7 @@ Redmine::Activity.map do |activity|
   activity.register :files, :class_name => 'Attachment'
   activity.register :wiki_edits, :class_name => 'WikiContent::Version', :default => false
   activity.register :messages, :default => false
+  activity.register :time_entries, :default => false
 end
 
 Redmine::WikiFormatting.map do |format|

@@ -17,8 +17,10 @@
 
 require File.dirname(__FILE__) + '/../test_helper'
 
-class MailerTest < Test::Unit::TestCase
-  fixtures :projects, :issues, :users, :members, :documents, :attachments, :news, :tokens, :journals, :journal_details, :changesets, :trackers, :issue_statuses, :enumerations, :messages, :boards, :repositories
+class MailerTest < ActiveSupport::TestCase
+  include Redmine::I18n
+  include ActionController::Assertions::SelectorAssertions
+  fixtures :projects, :enabled_modules, :issues, :users, :members, :member_roles, :roles, :documents, :attachments, :news, :tokens, :journals, :journal_details, :changesets, :trackers, :issue_statuses, :enumerations, :messages, :boards, :repositories
   
   def test_generated_links_in_emails
     ActionMailer::Base.deliveries.clear
@@ -30,61 +32,67 @@ class MailerTest < Test::Unit::TestCase
     
     mail = ActionMailer::Base.deliveries.last
     assert_kind_of TMail::Mail, mail
-    # link to the main ticket
-    assert mail.body.include?('<a href="https://mydomain.foo/issues/show/1">Bug #1: Can\'t print recipes</a>')
- 
-    # link to a referenced ticket
-    assert mail.body.include?('<a href="https://mydomain.foo/issues/show/2" class="issue" title="Add ingredients categories (Assigned)">#2</a>')
-    # link to a changeset
-    assert mail.body.include?('<a href="https://mydomain.foo/repositories/revision/ecookbook/2" class="changeset" title="This commit fixes #1, #2 and references #1 &amp; #3">r2</a>')
+    
+    assert_select_email do
+      # link to the main ticket
+      assert_select "a[href=?]", "https://mydomain.foo/issues/1", :text => "Bug #1: Can't print recipes"
+      # link to a referenced ticket
+      assert_select "a[href=?][title=?]", "https://mydomain.foo/issues/2", "Add ingredients categories (Assigned)", :text => "#2"
+      # link to a changeset
+      assert_select "a[href=?][title=?]", "https://mydomain.foo/projects/ecookbook/repository/revisions/2", "This commit fixes #1, #2 and references #1 &amp; #3", :text => "r2"
+    end
   end
   
   def test_generated_links_with_prefix
-    relative_url_root = ActionController::AbstractRequest.relative_url_root
+    relative_url_root = Redmine::Utils.relative_url_root
     ActionMailer::Base.deliveries.clear
     Setting.host_name = 'mydomain.foo/rdm'
     Setting.protocol = 'http'
-    ActionController::AbstractRequest.relative_url_root = '/rdm'
+    Redmine::Utils.relative_url_root = '/rdm'
     
     journal = Journal.find(2)
     assert Mailer.deliver_issue_edit(journal)
     
     mail = ActionMailer::Base.deliveries.last
     assert_kind_of TMail::Mail, mail
-    # link to the main ticket
-    assert mail.body.include?('<a href="http://mydomain.foo/rdm/issues/show/1">Bug #1: Can\'t print recipes</a>')
- 
-    # link to a referenced ticket
-    assert mail.body.include?('<a href="http://mydomain.foo/rdm/issues/show/2" class="issue" title="Add ingredients categories (Assigned)">#2</a>')
-    # link to a changeset
-    assert mail.body.include?('<a href="http://mydomain.foo/rdm/repositories/revision/ecookbook/2" class="changeset" title="This commit fixes #1, #2 and references #1 &amp; #3">r2</a>')
+
+    assert_select_email do
+      # link to the main ticket
+      assert_select "a[href=?]", "http://mydomain.foo/rdm/issues/1", :text => "Bug #1: Can't print recipes"
+      # link to a referenced ticket
+      assert_select "a[href=?][title=?]", "http://mydomain.foo/rdm/issues/2", "Add ingredients categories (Assigned)", :text => "#2"
+      # link to a changeset
+      assert_select "a[href=?][title=?]", "http://mydomain.foo/rdm/projects/ecookbook/repository/revisions/2", "This commit fixes #1, #2 and references #1 &amp; #3", :text => "r2"
+    end
   ensure
     # restore it
-    ActionController::AbstractRequest.relative_url_root = relative_url_root
+    Redmine::Utils.relative_url_root = relative_url_root
   end
   
   def test_generated_links_with_prefix_and_no_relative_url_root
-    relative_url_root = ActionController::AbstractRequest.relative_url_root
+    relative_url_root = Redmine::Utils.relative_url_root
     ActionMailer::Base.deliveries.clear
     Setting.host_name = 'mydomain.foo/rdm'
     Setting.protocol = 'http'
-    ActionController::AbstractRequest.relative_url_root = nil
+    Redmine::Utils.relative_url_root = nil
     
     journal = Journal.find(2)
     assert Mailer.deliver_issue_edit(journal)
     
     mail = ActionMailer::Base.deliveries.last
     assert_kind_of TMail::Mail, mail
-    # link to the main ticket
-    assert mail.body.include?('<a href="http://mydomain.foo/rdm/issues/show/1">Bug #1: Can\'t print recipes</a>')
- 
-    # link to a referenced ticket
-    assert mail.body.include?('<a href="http://mydomain.foo/rdm/issues/show/2" class="issue" title="Add ingredients categories (Assigned)">#2</a>')
-    # link to a changeset
-    assert mail.body.include?('<a href="http://mydomain.foo/rdm/repositories/revision/ecookbook/2" class="changeset" title="This commit fixes #1, #2 and references #1 &amp; #3">r2</a>')
+
+    assert_select_email do
+      # link to the main ticket
+      assert_select "a[href=?]", "http://mydomain.foo/rdm/issues/1", :text => "Bug #1: Can't print recipes"
+      # link to a referenced ticket
+      assert_select "a[href=?][title=?]", "http://mydomain.foo/rdm/issues/2", "Add ingredients categories (Assigned)", :text => "#2"
+      # link to a changeset
+      assert_select "a[href=?][title=?]", "http://mydomain.foo/rdm/projects/ecookbook/repository/revisions/2", "This commit fixes #1, #2 and references #1 &amp; #3", :text => "r2"
+    end
   ensure
     # restore it
-    ActionController::AbstractRequest.relative_url_root = relative_url_root
+    Redmine::Utils.relative_url_root = relative_url_root
   end
   
   def test_email_headers
@@ -102,15 +110,98 @@ class MailerTest < Test::Unit::TestCase
     journal = Journal.find(2)
     Mailer.deliver_issue_edit(journal)
     mail = ActionMailer::Base.deliveries.last
-    assert !mail.body.include?('<a href="https://mydomain.foo/issues/show/1">Bug #1: Can\'t print recipes</a>')
+    assert_equal "text/plain", mail.content_type
+    assert_equal 0, mail.parts.size
+    assert !mail.encoded.include?('href')
+  end
+
+  def test_html_mail
+    Setting.plain_text_mail = 0
+    journal = Journal.find(2)
+    Mailer.deliver_issue_edit(journal)
+    mail = ActionMailer::Base.deliveries.last
+    assert_equal 2, mail.parts.size
+    assert mail.encoded.include?('href')
+  end
+
+  def test_issue_add_message_id
+    ActionMailer::Base.deliveries.clear
+    issue = Issue.find(1)
+    Mailer.deliver_issue_add(issue)
+    mail = ActionMailer::Base.deliveries.last
+    assert_not_nil mail
+    assert_equal Mailer.message_id_for(issue), mail.message_id
+    assert_nil mail.references
   end
   
-
+  def test_issue_edit_message_id
+    ActionMailer::Base.deliveries.clear
+    journal = Journal.find(1)
+    Mailer.deliver_issue_edit(journal)
+    mail = ActionMailer::Base.deliveries.last
+    assert_not_nil mail
+    assert_equal Mailer.message_id_for(journal), mail.message_id
+    assert_equal Mailer.message_id_for(journal.issue), mail.references.first.to_s
+  end
+  
+  def test_message_posted_message_id
+    ActionMailer::Base.deliveries.clear
+    message = Message.find(1)
+    Mailer.deliver_message_posted(message)
+    mail = ActionMailer::Base.deliveries.last
+    assert_not_nil mail
+    assert_equal Mailer.message_id_for(message), mail.message_id
+    assert_nil mail.references
+  end
+  
+  def test_reply_posted_message_id
+    ActionMailer::Base.deliveries.clear
+    message = Message.find(3)
+    Mailer.deliver_message_posted(message)
+    mail = ActionMailer::Base.deliveries.last
+    assert_not_nil mail
+    assert_equal Mailer.message_id_for(message), mail.message_id
+    assert_equal Mailer.message_id_for(message.parent), mail.references.first.to_s
+  end
+  
+  context("#issue_add") do
+    setup do
+      ActionMailer::Base.deliveries.clear
+      Setting.bcc_recipients = '1'
+      @issue = Issue.find(1) 
+    end
+    
+    should "notify project members" do
+      assert Mailer.deliver_issue_add(@issue)
+      assert last_email.bcc.include?('dlopper@somenet.foo')
+    end
+    
+    should "not notify project members that are not allow to view the issue" do
+      Role.find(2).remove_permission!(:view_issues)
+      assert Mailer.deliver_issue_add(@issue)
+      assert !last_email.bcc.include?('dlopper@somenet.foo')
+    end
+    
+    should "notify issue watchers" do
+      user = User.find(9)
+      Watcher.create!(:watchable => @issue, :user => user)
+      assert Mailer.deliver_issue_add(@issue)
+      assert last_email.bcc.include?(user.mail)
+    end
+    
+    should "not notify watchers not allowed to view the issue" do
+      user = User.find(9)
+      Watcher.create!(:watchable => @issue, :user => user)
+      Role.non_member.remove_permission!(:view_issues)
+      assert Mailer.deliver_issue_add(@issue)
+      assert !last_email.bcc.include?(user.mail)
+    end
+  end
   
   # test mailer methods for each language
   def test_issue_add
     issue = Issue.find(1)
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       Setting.default_language = lang.to_s
       assert Mailer.deliver_issue_add(issue)
     end
@@ -118,7 +209,7 @@ class MailerTest < Test::Unit::TestCase
 
   def test_issue_edit
     journal = Journal.find(1)
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       Setting.default_language = lang.to_s
       assert Mailer.deliver_issue_edit(journal)
     end
@@ -126,7 +217,7 @@ class MailerTest < Test::Unit::TestCase
   
   def test_document_added
     document = Document.find(1)
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       Setting.default_language = lang.to_s
       assert Mailer.deliver_document_added(document)
     end
@@ -134,7 +225,7 @@ class MailerTest < Test::Unit::TestCase
   
   def test_attachments_added
     attachements = [ Attachment.find_by_container_type('Document') ]
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       Setting.default_language = lang.to_s
       assert Mailer.deliver_attachments_added(attachements)
     end
@@ -142,7 +233,7 @@ class MailerTest < Test::Unit::TestCase
   
   def test_news_added
     news = News.find(:first)
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       Setting.default_language = lang.to_s
       assert Mailer.deliver_news_added(news)
     end
@@ -152,15 +243,15 @@ class MailerTest < Test::Unit::TestCase
     message = Message.find(:first)
     recipients = ([message.root] + message.root.children).collect {|m| m.author.mail if m.author}
     recipients = recipients.compact.uniq
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       Setting.default_language = lang.to_s
-      assert Mailer.deliver_message_posted(message, recipients)
+      assert Mailer.deliver_message_posted(message)
     end
   end
   
   def test_account_information
     user = User.find(:first)
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       user.update_attribute :language, lang.to_s
       user.reload
       assert Mailer.deliver_account_information(user, 'pAsswORd')
@@ -169,7 +260,7 @@ class MailerTest < Test::Unit::TestCase
 
   def test_lost_password
     token = Token.find(2)
-    GLoc.valid_languages.each do |lang|
+    valid_languages.each do |lang|
       token.user.update_attribute :language, lang.to_s
       token.reload
       assert Mailer.deliver_lost_password(token)
@@ -178,10 +269,16 @@ class MailerTest < Test::Unit::TestCase
 
   def test_register
     token = Token.find(1)
-    GLoc.valid_languages.each do |lang|
+    Setting.host_name = 'redmine.foo'
+    Setting.protocol = 'https'
+    
+    valid_languages.each do |lang|
       token.user.update_attribute :language, lang.to_s
       token.reload
+      ActionMailer::Base.deliveries.clear
       assert Mailer.deliver_register(token)
+      mail = ActionMailer::Base.deliveries.last
+      assert mail.body.include?("https://redmine.foo/account/activate?token=#{token.value}")
     end
   end
   
@@ -192,5 +289,25 @@ class MailerTest < Test::Unit::TestCase
     mail = ActionMailer::Base.deliveries.last
     assert mail.bcc.include?('dlopper@somenet.foo')
     assert mail.body.include?('Bug #3: Error 281 when updating a recipe')
+  end
+  
+  def last_email
+    mail = ActionMailer::Base.deliveries.last
+    assert_not_nil mail
+    mail
+  end
+  
+  def test_mailer_should_not_change_locale
+    Setting.default_language = 'en'
+    # Set current language to italian
+    set_language_if_valid 'it'
+    # Send an email to a french user
+    user = User.find(1)
+    user.language = 'fr'
+    Mailer.deliver_account_activated(user)
+    mail = ActionMailer::Base.deliveries.last
+    assert mail.body.include?('Votre compte')
+    
+    assert_equal :it, current_language
   end
 end

@@ -270,7 +270,7 @@ class RedCloth3 < String
         
         @urlrefs = {}
         @shelf = []
-        textile_rules = [:refs_textile, :block_textile_table, :block_textile_lists,
+        textile_rules = [:block_textile_table, :block_textile_lists,
                          :block_textile_prefix, :inline_textile_image, :inline_textile_link,
                          :inline_textile_code, :inline_textile_span, :glyphs_textile]
         markdown_rules = [:refs_markdown, :block_markdown_setext, :block_markdown_atx, :block_markdown_rule,
@@ -577,7 +577,7 @@ class RedCloth3 < String
         end
     end
     
-    QUOTES_RE = /(^>+([^\n]*?)\n?)+/m
+    QUOTES_RE = /(^>+([^\n]*?)(\n|$))+/m
     QUOTES_CONTENT_RE = /^([> ]+)(.*)$/m
     
     def block_textile_quotes( text )
@@ -784,6 +784,7 @@ class RedCloth3 < String
     end
 
     LINK_RE = /
+            (
             ([\s\[{(]|[#{PUNCT}])?     # $pre
             "                          # start
             (#{C})                     # $atts
@@ -797,13 +798,16 @@ class RedCloth3 < String
             )               
             (\/)?                      # $slash
             ([^\w\=\/;\(\)]*?)         # $post
+            )
             (?=<|\s|$)
         /x 
 #"
     def inline_textile_link( text ) 
         text.gsub!( LINK_RE ) do |m|
-            pre,atts,text,title,url,proto,slash,post = $~[1..8]
-
+          all,pre,atts,text,title,url,proto,slash,post = $~[1..9]
+          if text.include?('<br />')
+            all
+          else
             url, url_title = check_refs( url )
             title ||= url_title
             
@@ -821,6 +825,7 @@ class RedCloth3 < String
             external = (url =~ /^https?:\/\//) ? ' class="external"' : ''
             
             "#{ pre }<a#{ atts }#{ external }>#{ text }</a>#{ post }"
+          end
         end
     end
 

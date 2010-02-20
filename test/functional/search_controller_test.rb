@@ -4,8 +4,8 @@ require 'search_controller'
 # Re-raise errors caught by the controller.
 class SearchController; def rescue_action(e) raise e end; end
 
-class SearchControllerTest < Test::Unit::TestCase
-  fixtures :projects, :enabled_modules, :roles, :users,
+class SearchControllerTest < ActionController::TestCase
+  fixtures :projects, :enabled_modules, :roles, :users, :members, :member_roles,
            :issues, :trackers, :issue_statuses,
            :custom_fields, :custom_values,
            :repositories, :changesets
@@ -41,8 +41,19 @@ class SearchControllerTest < Test::Unit::TestCase
                     :sibling => { :tag => 'dd', :content => /should be classified by categories/ }
     
     assert assigns(:results_by_type).is_a?(Hash)
-    assert_equal 4, assigns(:results_by_type)['changesets']
-    assert_tag :a, :content => 'Changesets (4)'
+    assert_equal 5, assigns(:results_by_type)['changesets']
+    assert_tag :a, :content => 'Changesets (5)'
+  end
+  
+  def test_search_issues
+    get :index, :q => 'issue', :issues => 1
+    assert_response :success
+    assert_template 'index'
+    
+    assert assigns(:results).include?(Issue.find(8))
+    assert assigns(:results).include?(Issue.find(5))
+    assert_tag :dt, :attributes => { :class => /issue closed/ },
+                    :child => { :tag => 'a',  :content => /Closed/ }
   end
   
   def test_search_project_and_subprojects
@@ -115,7 +126,7 @@ class SearchControllerTest < Test::Unit::TestCase
   def test_quick_jump_to_issue
     # issue of a public project
     get :index, :q => "3"
-    assert_redirected_to 'issues/show/3'
+    assert_redirected_to 'issues/3'
     
     # issue of a private project
     get :index, :q => "4"

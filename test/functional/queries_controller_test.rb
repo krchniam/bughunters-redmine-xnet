@@ -21,8 +21,8 @@ require 'queries_controller'
 # Re-raise errors caught by the controller.
 class QueriesController; def rescue_action(e) raise e end; end
 
-class QueriesControllerTest < Test::Unit::TestCase
-  fixtures :projects, :users, :members, :roles, :trackers, :issue_statuses, :issue_categories, :enumerations, :issues, :custom_fields, :custom_values, :queries
+class QueriesControllerTest < ActionController::TestCase
+  fixtures :projects, :users, :members, :member_roles, :roles, :trackers, :issue_statuses, :issue_categories, :enumerations, :issues, :custom_fields, :custom_values, :queries
   
   def setup
     @controller = QueriesController.new
@@ -70,7 +70,7 @@ class QueriesControllerTest < Test::Unit::TestCase
          :query => {"name" => "test_new_project_public_query", "is_public" => "1"}
          
     q = Query.find_by_name('test_new_project_public_query')
-    assert_redirected_to :controller => 'issues', :action => 'index', :query_id => q
+    assert_redirected_to :controller => 'issues', :action => 'index', :project_id => 'ecookbook', :query_id => q
     assert q.is_public?
     assert q.has_default_columns?
     assert q.valid?
@@ -88,7 +88,7 @@ class QueriesControllerTest < Test::Unit::TestCase
          :query => {"name" => "test_new_project_private_query", "is_public" => "1"}
          
     q = Query.find_by_name('test_new_project_private_query')
-    assert_redirected_to :controller => 'issues', :action => 'index', :query_id => q
+    assert_redirected_to :controller => 'issues', :action => 'index', :project_id => 'ecookbook', :query_id => q
     assert !q.is_public?
     assert q.has_default_columns?
     assert q.valid?
@@ -104,11 +104,27 @@ class QueriesControllerTest < Test::Unit::TestCase
          :query => {"name" => "test_new_global_private_query", "is_public" => "1", "column_names" => ["", "tracker", "subject", "priority", "category"]}
          
     q = Query.find_by_name('test_new_global_private_query')
-    assert_redirected_to :controller => 'issues', :action => 'index', :query_id => q
+    assert_redirected_to :controller => 'issues', :action => 'index', :project_id => nil, :query_id => q
     assert !q.is_public?
     assert !q.has_default_columns?
     assert_equal [:tracker, :subject, :priority, :category], q.columns.collect {|c| c.name}
     assert q.valid?
+  end
+  
+  def test_new_with_sort
+    @request.session[:user_id] = 1
+    post :new,
+         :confirm => '1',
+         :default_columns => '1',
+         :operators => {"status_id" => "o"},
+         :values => {"status_id" => ["1"]},
+         :query => {:name => "test_new_with_sort",
+                    :is_public => "1", 
+                    :sort_criteria => {"0" => ["due_date", "desc"], "1" => ["tracker", ""]}}
+    
+    query = Query.find_by_name("test_new_with_sort")
+    assert_not_nil query
+    assert_equal [['due_date', 'desc'], ['tracker', 'asc']], query.sort_criteria
   end
   
   def test_get_edit_global_public_query
@@ -200,6 +216,19 @@ class QueriesControllerTest < Test::Unit::TestCase
                                                  :name => 'query_is_for_all',
                                                  :checked => nil,
                                                  :disabled => 'disabled' }
+  end
+  
+  def test_get_edit_sort_criteria
+    @request.session[:user_id] = 1
+    get :edit, :id => 5
+    assert_response :success
+    assert_template 'edit'
+    assert_tag :tag => 'select', :attributes => { :name => 'query[sort_criteria][0][]' },
+                                 :child => { :tag => 'option', :attributes => { :value => 'priority',
+                                                                                :selected => 'selected' } }
+    assert_tag :tag => 'select', :attributes => { :name => 'query[sort_criteria][0][]' },
+                                 :child => { :tag => 'option', :attributes => { :value => 'desc',
+                                                                                :selected => 'selected' } }
   end
   
   def test_destroy

@@ -23,6 +23,22 @@ function showAndScrollTo(id, focus) {
 	Element.scrollTo(id);
 }
 
+function toggleRowGroup(el) {
+	var tr = Element.up(el, 'tr');
+	var n = Element.next(tr);
+	tr.toggleClassName('open');
+	while (n != undefined && !n.hasClassName('group')) {
+		Element.toggle(n);
+		n = Element.next(n);
+	}
+}
+
+function toggleFieldset(el) {
+	var fieldset = Element.up(el, 'fieldset');
+	fieldset.toggleClassName('collapsed');
+	Effect.toggle(fieldset.down('div'), 'slide', {duration:0.2});
+}
+
 var fileFieldCount = 1;
 
 function addFileField() {
@@ -57,9 +73,58 @@ function showTab(name) {
 	return false;
 }
 
+function moveTabRight(el) {
+	var lis = Element.up(el, 'div.tabs').down('ul').childElements();
+	var tabsWidth = 0;
+	var i;
+	for (i=0; i<lis.length; i++) {
+		if (lis[i].visible()) {
+			tabsWidth += lis[i].getWidth() + 6;
+		}
+	}
+	if (tabsWidth < Element.up(el, 'div.tabs').getWidth() - 60) {
+		return;
+	}
+	i=0;
+	while (i<lis.length && !lis[i].visible()) {
+		i++;
+	}
+	lis[i].hide();
+}
+
+function moveTabLeft(el) {
+	var lis = Element.up(el, 'div.tabs').down('ul').childElements();
+	var i = 0;
+	while (i<lis.length && !lis[i].visible()) {
+		i++;
+	}
+	if (i>0) {
+		lis[i-1].show();
+	}
+}
+
+function displayTabsButtons() {
+	var lis;
+	var tabsWidth = 0;
+	var i;
+	$$('div.tabs').each(function(el) {
+		lis = el.down('ul').childElements();
+		for (i=0; i<lis.length; i++) {
+			if (lis[i].visible()) {
+				tabsWidth += lis[i].getWidth() + 6;
+			}
+		}
+		if ((tabsWidth < el.getWidth() - 60) && (lis[0].visible())) {
+			el.down('div.tabs-buttons').hide();
+		} else {
+			el.down('div.tabs-buttons').show();
+		}
+	});
+}
+
 function setPredecessorFieldsVisibility() {
     relationType = $('relation_relation_type');
-    if (relationType && relationType.value == "precedes") {
+    if (relationType && (relationType.value == "precedes" || relationType.value == "follows")) {
         Element.show('predecessor_fields');
     } else {
         Element.hide('predecessor_fields');

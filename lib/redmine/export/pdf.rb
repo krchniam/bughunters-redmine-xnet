@@ -1,3 +1,5 @@
+# encoding: utf-8
+#
 # Redmine - project management software
 # Copyright (C) 2006-2009  Jean-Philippe Lang
 #
@@ -16,21 +18,28 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 require 'iconv'
+require 'rfpdf/fpdf'
 require 'rfpdf/chinese'
 
 module Redmine
   module Export
     module PDF
+      include ActionView::Helpers::TextHelper
       include ActionView::Helpers::NumberHelper
       
       class IFPDF < FPDF
-        include GLoc
+        include Redmine::I18n
         attr_accessor :footer_date
         
         def initialize(lang)
           super()
           set_language_if_valid lang
-          case current_language.to_s
+          case current_language.to_s.downcase
+          when 'ko'
+            extend(PDF_Korean)
+            AddUHCFont()
+            @font_for_content = 'UHC'
+            @font_for_footer = 'UHC'
           when 'ja'
             extend(PDF_Japanese)
             AddSJISFont()
@@ -106,14 +115,22 @@ module Redmine
       end
       
       # Returns a PDF string of a list of issues
-      def issues_to_pdf(issues, project)
+      def issues_to_pdf(issues, project, query)
         pdf = IFPDF.new(current_language)
-        title = project ? "#{project} - #{l(:label_issue_plural)}" : "#{l(:label_issue_plural)}"
+        title = query.new_record? ? l(:label_issue_plural) : query.name
+        title = "#{project} - #{title}" if project
         pdf.SetTitle(title)
         pdf.AliasNbPages
         pdf.footer_date = format_date(Date.today)
         pdf.AddPage("L")
-        row_height = 7
+        
+        row_height = 6
+        col_width = []
+        unless query.columns.empty?
+          col_width = query.columns.collect {|column| column.name == :subject ? 4.0 : 1.0 }
+          ratio = 262.0 / col_width.inject(0) {|s,w| s += w}
+          col_width = col_width.collect {|w| w * ratio}
+        end
         
         # title
         pdf.SetFontStyle('B',11)    
@@ -121,33 +138,49 @@ module Redmine
         pdf.Ln
         
         # headers
-        pdf.SetFontStyle('B',10)
+        pdf.SetFontStyle('B',8)
         pdf.SetFillColor(230, 230, 230)
-        pdf.Cell(15, row_height, "#", 0, 0, 'L', 1)
-        pdf.Cell(30, row_height, l(:field_tracker), 0, 0, 'L', 1)
-        pdf.Cell(30, row_height, l(:field_status), 0, 0, 'L', 1)
-        pdf.Cell(30, row_height, l(:field_priority), 0, 0, 'L', 1)
-        pdf.Cell(40, row_height, l(:field_assigned_to), 0, 0, 'L', 1)
-        pdf.Cell(25, row_height, l(:field_updated_on), 0, 0, 'L', 1)
-        pdf.Cell(0, row_height, l(:field_subject), 0, 0, 'L', 1)
-        pdf.Line(10, pdf.GetY, 287, pdf.GetY)
+        pdf.Cell(15, row_height, "#", 1, 0, 'L', 1)
+        query.columns.each_with_index do |column, i|
+          pdf.Cell(col_width[i], row_height, column.caption, 1, 0, 'L', 1)
+        end
         pdf.Ln
-        pdf.Line(10, pdf.GetY, 287, pdf.GetY)
-        pdf.SetY(pdf.GetY() + 1)
         
         # rows
-        pdf.SetFontStyle('',9)
+        pdf.SetFontStyle('',8)
         pdf.SetFillColor(255, 255, 255)
-        issues.each do |issue|   
-          pdf.Cell(15, row_height, issue.id.to_s, 0, 0, 'L', 1)
-          pdf.Cell(30, row_height, issue.tracker.name, 0, 0, 'L', 1)
-          pdf.Cell(30, row_height, issue.status.name, 0, 0, 'L', 1)
-          pdf.Cell(30, row_height, issue.priority.name, 0, 0, 'L', 1)
-          pdf.Cell(40, row_height, issue.assigned_to ? issue.assigned_to.to_s : '', 0, 0, 'L', 1)
-          pdf.Cell(25, row_height, format_date(issue.updated_on), 0, 0, 'L', 1)
-          pdf.MultiCell(0, row_height, (project == issue.project ? issue.subject : "#{issue.project} - #{issue.subject}"))
-          pdf.Line(10, pdf.GetY, 287, pdf.GetY)
-          pdf.SetY(pdf.GetY() + 1)
+        previous_group = false
+        issues.each do |issue|
+          if query.grouped? && (group = query.group_by_column.value(issue)) != previous_group
+            pdf.SetFontStyle('B',9)
+            pdf.Cell(277, row_height, 
+              (group.blank? ? 'None' : group.to_s) + " (#{@issue_count_by_group[group]})",
+              1, 1, 'L')
+            pdf.SetFontStyle('',8)
+            previous_group = group
+          end
+          pdf.Cell(15, row_height, issue.id.to_s, 1, 0, 'L', 1)
+          query.columns.each_with_index do |column, i|
+            s = if column.is_a?(QueryCustomFieldColumn)
+              cv = issue.custom_values.detect {|v| v.custom_field_id == column.custom_field.id}
+              show_value(cv)
+            else
+              value = issue.send(column.name)
+              if value.is_a?(Date)
+                format_date(value)
+              elsif value.is_a?(Time)
+                format_time(value)
+              else
+                value
+              end
+            end
+            pdf.Cell(col_width[i], row_height, s.to_s, 1, 0, 'L', 1)
+          end
+          pdf.Ln
+        end
+        if issues.size == Setting.issues_export_limit.to_i
+          pdf.SetFontStyle('B',10)
+          pdf.Cell(0, row_height, '...')
         end
         pdf.Output
       end
@@ -206,7 +239,7 @@ module Redmine
         pdf.Cell(60,5, format_date(issue.due_date),"RB")
         pdf.Ln
           
-        for custom_value in issue.custom_values
+        for custom_value in issue.custom_field_values
           pdf.SetFontStyle('B',9)
           pdf.Cell(35,5, custom_value.custom_field.name + ":","L")
           pdf.SetFontStyle('',9)

@@ -18,7 +18,7 @@
 require "#{File.dirname(__FILE__)}/../test_helper"
 
 class AdminTest < ActionController::IntegrationTest
-  fixtures :users
+  fixtures :all
 
   def test_add_user
     log_user("admin", "admin")
@@ -26,47 +26,24 @@ class AdminTest < ActionController::IntegrationTest
     assert_response :success
     assert_template "users/add"
     post "/users/add", :user => { :login => "psmith", :firstname => "Paul", :lastname => "Smith", :mail => "psmith@somenet.foo", :language => "en" }, :password => "psmith09", :password_confirmation => "psmith09"
-    assert_redirected_to "users/list"
     
     user = User.find_by_login("psmith")
     assert_kind_of User, user
+    assert_redirected_to "/users/#{ user.id }/edit"
+    
     logged_user = User.try_to_login("psmith", "psmith09")
     assert_kind_of User, logged_user
     assert_equal "Paul", logged_user.firstname
     
     post "users/edit", :id => user.id, :user => { :status => User::STATUS_LOCKED }
-    assert_redirected_to "users/list"
+    assert_redirected_to "/users/#{ user.id }/edit"
     locked_user = User.try_to_login("psmith", "psmith09")
     assert_equal nil, locked_user
   end
-  
-  def test_add_project
-    log_user("admin", "admin")
-    get "projects/add"
-    assert_response :success
-    assert_template "projects/add"
-    post "projects/add", :project => { :name => "blog", 
-                                       :description => "weblog",
-                                       :identifier => "blog",
-                                       :is_public => 1,
-                                       :custom_field_values => { '3' => 'Beta' }
-                                       }
-    assert_redirected_to "admin/projects"
-    assert_equal 'Successful creation.', flash[:notice]
-    
-    project = Project.find_by_name("blog")
-    assert_kind_of Project, project
-    assert_equal "weblog", project.description 
-    assert_equal true, project.is_public?
-    
-    get "admin/projects"
-    assert_response :success
-    assert_template "admin/projects"
-  end  
 
-  def test_add_a_user_as_an_anonymous_user_should_fail
+  test "Add a user as an anonymous user should fail" do
     post '/users/add', :user => { :login => 'psmith', :firstname => 'Paul'}, :password => "psmith09", :password_confirmation => "psmith09"
     assert_response :redirect
-    assert_redirected_to "/login?back_url=http%3A%2F%2Fwww.example.com%2Fusers%2Fadd"
+    assert_redirected_to "/login?back_url=http%3A%2F%2Fwww.example.com%2Fusers%2Fnew"
   end
 end

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # redMine - project management software
 # Copyright (C) 2006-2007  Jean-Philippe Lang
 #
@@ -21,13 +22,35 @@ require 'timelog_controller'
 # Re-raise errors caught by the controller.
 class TimelogController; def rescue_action(e) raise e end; end
 
-class TimelogControllerTest < Test::Unit::TestCase
-  fixtures :projects, :enabled_modules, :roles, :members, :issues, :time_entries, :users, :trackers, :enumerations, :issue_statuses, :custom_fields, :custom_values
+class TimelogControllerTest < ActionController::TestCase
+  fixtures :projects, :enabled_modules, :roles, :members, :member_roles, :issues, :time_entries, :users, :trackers, :enumerations, :issue_statuses, :custom_fields, :custom_values
 
   def setup
     @controller = TimelogController.new
     @request    = ActionController::TestRequest.new
     @response   = ActionController::TestResponse.new
+  end
+  
+  def test_edit_routing
+    assert_routing(
+      {:method => :get, :path => '/issues/567/time_entries/new'},
+      :controller => 'timelog', :action => 'edit', :issue_id => '567'
+    )
+    assert_routing(
+      {:method => :get, :path => '/projects/ecookbook/time_entries/new'},
+      :controller => 'timelog', :action => 'edit', :project_id => 'ecookbook'
+    )
+    assert_routing(
+      {:method => :get, :path => '/projects/ecookbook/issues/567/time_entries/new'},
+      :controller => 'timelog', :action => 'edit', :project_id => 'ecookbook', :issue_id => '567'
+    )
+
+    #TODO: change new form to POST to issue_time_entries_path instead of to edit action
+    #TODO: change edit form to PUT to time_entry_path
+    assert_routing(
+      {:method => :get, :path => '/time_entries/22/edit'},
+      :controller => 'timelog', :action => 'edit', :id => '22'
+    )
   end
   
   def test_get_edit
@@ -40,7 +63,40 @@ class TimelogControllerTest < Test::Unit::TestCase
                                  :content => 'Development'
   end
   
+  def test_get_edit_existing_time
+    @request.session[:user_id] = 2
+    get :edit, :id => 2, :project_id => nil
+    assert_response :success
+    assert_template 'edit'
+    # Default activity selected
+    assert_tag :tag => 'form', :attributes => { :action => '/projects/ecookbook/timelog/edit/2' }
+  end
+  
+  def test_get_edit_should_only_show_active_time_entry_activities
+    @request.session[:user_id] = 3
+    get :edit, :project_id => 1
+    assert_response :success
+    assert_template 'edit'
+    assert_no_tag :tag => 'option', :content => 'Inactive Activity'
+                                    
+  end
+
+  def test_get_edit_with_an_existing_time_entry_with_inactive_activity
+    te = TimeEntry.find(1)
+    te.activity = TimeEntryActivity.find_by_name("Inactive Activity")
+    te.save!
+
+    @request.session[:user_id] = 1
+    get :edit, :project_id => 1, :id => 1
+    assert_response :success
+    assert_template 'edit'
+    # Blank option since nothing is pre-selected
+    assert_tag :tag => 'option', :content => '--- Please select ---'
+  end
+  
   def test_post_edit
+    # TODO: should POST to issues’ time log instead of project. change form
+    # and routing
     @request.session[:user_id] = 3
     post :edit, :project_id => 1,
                 :time_entry => {:comments => 'Some work on TimelogControllerTest',
@@ -49,7 +105,7 @@ class TimelogControllerTest < Test::Unit::TestCase
                                 :spent_on => '2008-03-14',
                                 :issue_id => '1',
                                 :hours => '7.3'}
-    assert_redirected_to 'projects/ecookbook/timelog/details'
+    assert_redirected_to :action => 'details', :project_id => 'ecookbook'
     
     i = Issue.find(1)
     t = TimeEntry.find_by_comments('Some work on TimelogControllerTest')
@@ -70,7 +126,7 @@ class TimelogControllerTest < Test::Unit::TestCase
     post :edit, :id => 1,
                 :time_entry => {:issue_id => '2',
                                 :hours => '8'}
-    assert_redirected_to 'projects/ecookbook/timelog/details'
+    assert_redirected_to :action => 'details', :project_id => 'ecookbook'
     entry.reload
     
     assert_equal 8, entry.hours
@@ -78,17 +134,43 @@ class TimelogControllerTest < Test::Unit::TestCase
     assert_equal 2, entry.user_id
   end
   
+  def test_destroy_routing
+    #TODO: use DELETE to time_entry_path
+    assert_routing(
+      {:method => :post, :path => '/time_entries/55/destroy'},
+      :controller => 'timelog', :action => 'destroy', :id => '55'
+    )
+  end
+  
   def test_destroy
     @request.session[:user_id] = 2
     post :destroy, :id => 1
-    assert_redirected_to 'projects/ecookbook/timelog/details'
+    assert_redirected_to :action => 'details', :project_id => 'ecookbook'
     assert_nil TimeEntry.find_by_id(1)
   end
-
+  
+  def test_report_routing
+    assert_routing(
+      {:method => :get, :path => '/projects/567/time_entries/report'},
+      :controller => 'timelog', :action => 'report', :project_id => '567'
+    )
+    assert_routing(
+      {:method => :get, :path => '/projects/567/time_entries/report.csv'},
+      :controller => 'timelog', :action => 'report', :project_id => '567', :format => 'csv'
+    )
+  end
+  
   def test_report_no_criteria
     get :report, :project_id => 1
     assert_response :success
     assert_template 'report'
+  end
+  
+  def test_report_routing_for_all_projects
+    assert_routing(
+      {:method => :get, :path => '/time_entries/report'},
+      :controller => 'timelog', :action => 'report'
+    )
   end
 
   def test_report_all_projects
@@ -103,7 +185,7 @@ class TimelogControllerTest < Test::Unit::TestCase
     r.permissions_will_change!
     r.save
     get :report
-    assert_redirected_to '/account/login'
+    assert_redirected_to '/login?back_url=http%3A%2F%2Ftest.host%2Ftime_entries%2Freport'
   end
   
   def test_report_all_projects_one_criteria
@@ -155,13 +237,21 @@ class TimelogControllerTest < Test::Unit::TestCase
     assert_equal "4.25", "%.2f" % assigns(:total_hours)
   end
   
+  def test_report_at_issue_level
+    get :report, :project_id => 1, :issue_id => 1, :columns => 'month', :from => "2007-01-01", :to => "2007-12-31", :criterias => ["member", "activity"]
+    assert_response :success
+    assert_template 'report'
+    assert_not_nil assigns(:total_hours)
+    assert_equal "154.25", "%.2f" % assigns(:total_hours)
+  end
+  
   def test_report_custom_field_criteria
-    get :report, :project_id => 1, :criterias => ['project', 'cf_1']
+    get :report, :project_id => 1, :criterias => ['project', 'cf_1', 'cf_7']
     assert_response :success
     assert_template 'report'
     assert_not_nil assigns(:total_hours)
     assert_not_nil assigns(:criterias)
-    assert_equal 2, assigns(:criterias).size
+    assert_equal 3, assigns(:criterias).size
     assert_equal "162.90", "%.2f" % assigns(:total_hours)
     # Custom field column
     assert_tag :tag => 'th', :content => 'Database'
@@ -170,6 +260,8 @@ class TimelogControllerTest < Test::Unit::TestCase
                              :sibling => { :tag => 'td', :attributes => { :class => 'hours' },
                                                          :child => { :tag => 'span', :attributes => { :class => 'hours hours-int' },
                                                                                      :content => '1' }}
+    # Second custom field column
+    assert_tag :tag => 'th', :content => 'Billable'
   end
   
   def test_report_one_criteria_no_result
@@ -209,7 +301,14 @@ class TimelogControllerTest < Test::Unit::TestCase
     assert_not_nil assigns(:total_hours)
     assert_equal "162.90", "%.2f" % assigns(:total_hours)
   end
-
+  
+  def test_project_details_routing
+    assert_routing(
+      {:method => :get, :path => '/projects/567/time_entries'},
+      :controller => 'timelog', :action => 'details', :project_id => '567'
+    )
+  end
+  
   def test_details_at_project_level
     get :details, :project_id => 1
     assert_response :success
@@ -255,6 +354,23 @@ class TimelogControllerTest < Test::Unit::TestCase
     assert_equal "4.25", "%.2f" % assigns(:total_hours)
   end
   
+  def test_issue_details_routing
+    assert_routing(
+      {:method => :get, :path => 'time_entries'},
+      :controller => 'timelog', :action => 'details'
+    )
+    assert_routing(
+      {:method => :get, :path => '/issues/234/time_entries'},
+      :controller => 'timelog', :action => 'details', :issue_id => '234'
+    )
+    # TODO: issue detail page shouldnt link to project_issue_time_entries_path but to normal issues one
+    # doesnt seem to have effect on resulting page so controller can be left untouched
+    assert_routing(
+      {:method => :get, :path => '/projects/ecookbook/issues/123/time_entries'},
+      :controller => 'timelog', :action => 'details', :project_id => 'ecookbook', :issue_id => '123'
+    )
+  end
+  
   def test_details_at_issue_level
     get :details, :issue_id => 1
     assert_response :success
@@ -268,6 +384,39 @@ class TimelogControllerTest < Test::Unit::TestCase
     assert_equal '2007-04-22'.to_date, assigns(:to)
   end
   
+  def test_details_formatted_routing
+    assert_routing(
+      {:method => :get, :path => 'time_entries.atom'},
+      :controller => 'timelog', :action => 'details', :format => 'atom'
+    )
+    assert_routing(
+      {:method => :get, :path => 'time_entries.csv'},
+      :controller => 'timelog', :action => 'details', :format => 'csv'
+    )
+  end
+  
+  def test_details_for_project_formatted_routing
+    assert_routing(
+      {:method => :get, :path => '/projects/567/time_entries.atom'},
+      :controller => 'timelog', :action => 'details', :format => 'atom', :project_id => '567'
+    )
+    assert_routing(
+      {:method => :get, :path => '/projects/567/time_entries.csv'},
+      :controller => 'timelog', :action => 'details', :format => 'csv', :project_id => '567'
+    )
+  end
+  
+  def test_details_for_issue_formatted_routing
+    assert_routing(
+      {:method => :get, :path => '/projects/ecookbook/issues/123/time_entries.atom'},
+      :controller => 'timelog', :action => 'details', :project_id => 'ecookbook', :issue_id => '123', :format => 'atom'
+    )
+    assert_routing(
+      {:method => :get, :path => '/projects/ecookbook/issues/123/time_entries.csv'},
+      :controller => 'timelog', :action => 'details', :project_id => 'ecookbook', :issue_id => '123', :format => 'csv'
+    )
+  end
+  
   def test_details_atom_feed
     get :details, :project_id => 1, :format => 'atom'
     assert_response :success
@@ -277,6 +426,7 @@ class TimelogControllerTest < Test::Unit::TestCase
   end
   
   def test_details_all_projects_csv_export
+    Setting.date_format = '%m/%d/%Y'
     get :details, :format => 'csv'
     assert_response :success
     assert_equal 'text/csv', @response.content_type
@@ -285,6 +435,7 @@ class TimelogControllerTest < Test::Unit::TestCase
   end
   
   def test_details_csv_export
+    Setting.date_format = '%m/%d/%Y'
     get :details, :project_id => 1, :format => 'csv'
     assert_response :success
     assert_equal 'text/csv', @response.content_type

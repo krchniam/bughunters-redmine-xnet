@@ -2,7 +2,7 @@ desc 'Load Redmine default configuration data. Language is chosen interactively 
 
 namespace :redmine do
   task :load_default_data => :environment do
-    include GLoc
+    include Redmine::I18n
     set_language_if_valid('en')
     
     envlang = ENV['REDMINE_LANG']
@@ -10,8 +10,8 @@ namespace :redmine do
       puts
       while true
         print "Select language: "
-        print GLoc.valid_languages.sort {|x,y| x.to_s <=> y.to_s }.join(", ")
-        print " [#{GLoc.current_language}] "
+        print valid_languages.collect(&:to_s).sort.join(", ")
+        print " [#{current_language}] "
         STDOUT.flush
         lang = STDIN.gets.chomp!
         break if lang.empty?

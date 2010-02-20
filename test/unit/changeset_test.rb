@@ -17,13 +17,14 @@
 
 require File.dirname(__FILE__) + '/../test_helper'
 
-class ChangesetTest < Test::Unit::TestCase
-  fixtures :projects, :repositories, :issues, :issue_statuses, :changesets, :changes, :issue_categories, :enumerations, :custom_fields, :custom_values, :users, :members, :trackers
+class ChangesetTest < ActiveSupport::TestCase
+  fixtures :projects, :repositories, :issues, :issue_statuses, :changesets, :changes, :issue_categories, :enumerations, :custom_fields, :custom_values, :users, :members, :member_roles, :trackers
 
   def setup
   end
   
   def test_ref_keywords_any
+    ActionMailer::Base.deliveries.clear
     Setting.commit_fix_status_id = IssueStatus.find(:first, :conditions => ["is_closed = ?", true]).id
     Setting.commit_fix_done_ratio = '90'
     Setting.commit_ref_keywords = '*'
@@ -38,6 +39,7 @@ class ChangesetTest < Test::Unit::TestCase
     fixed = Issue.find(1)
     assert fixed.closed?
     assert_equal 90, fixed.done_ratio
+    assert_equal 1, ActionMailer::Base.deliveries.size
   end
   
   def test_ref_keywords_any_line_start
@@ -49,6 +51,51 @@ class ChangesetTest < Test::Unit::TestCase
     c.scan_comment_for_issue_ids
 
     assert_equal [1], c.issue_ids.sort
+  end
+
+  def test_ref_keywords_allow_brackets_around_a_issue_number
+    Setting.commit_ref_keywords = '*'
+
+    c = Changeset.new(:repository => Project.find(1).repository,
+                      :committed_on => Time.now,
+                      :comments => '[#1] Worked on this issue')
+    c.scan_comment_for_issue_ids
+
+    assert_equal [1], c.issue_ids.sort
+  end
+
+  def test_ref_keywords_allow_brackets_around_multiple_issue_numbers
+    Setting.commit_ref_keywords = '*'
+
+    c = Changeset.new(:repository => Project.find(1).repository,
+                      :committed_on => Time.now,
+                      :comments => '[#1 #2, #3] Worked on these')
+    c.scan_comment_for_issue_ids
+
+    assert_equal [1,2,3], c.issue_ids.sort
+  end
+  
+  def test_commit_referencing_a_subproject_issue
+    c = Changeset.new(:repository => Project.find(1).repository,
+                      :committed_on => Time.now,
+                      :comments => 'refs #5, a subproject issue')
+    c.scan_comment_for_issue_ids
+    
+    assert_equal [5], c.issue_ids.sort
+    assert c.issues.first.project != c.project
+  end
+
+  def test_commit_referencing_a_parent_project_issue
+    # repository of child project
+    r = Repository::Subversion.create!(:project => Project.find(3), :url => 'svn://localhost/test')
+      
+    c = Changeset.new(:repository => r,
+                      :committed_on => Time.now,
+                      :comments => 'refs #2, an issue of a parent project')
+    c.scan_comment_for_issue_ids
+    
+    assert_equal [2], c.issue_ids.sort
+    assert c.issues.first.project != c.project
   end
 
   def test_previous
@@ -67,7 +114,7 @@ class ChangesetTest < Test::Unit::TestCase
   end
 
   def test_next_nil
-    changeset = Changeset.find_by_revision('4')
+    changeset = Changeset.find_by_revision('10')
     assert_nil changeset.next
   end
 end

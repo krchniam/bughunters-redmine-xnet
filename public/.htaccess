@@ -23,7 +23,7 @@ Options +FollowSymLinks +ExecCGI
 # For better performance replace the dispatcher with the fastcgi one
 #
 # Example:
-RewriteRule ^(.*)$ dispatch.fcgi [QSA,L]
+#   RewriteRule ^(.*)$ dispatch.fcgi [QSA,L]
 RewriteEngine On
 
 # If your Rails application is accessed via an Alias directive,

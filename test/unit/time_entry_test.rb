@@ -17,7 +17,7 @@
 
 require File.dirname(__FILE__) + '/../test_helper'
 
-class TimeEntryTest < Test::Unit::TestCase
+class TimeEntryTest < ActiveSupport::TestCase
   fixtures :issues, :projects, :users, :time_entries
 
   def test_hours_format
@@ -43,5 +43,9 @@ class TimeEntryTest < Test::Unit::TestCase
       t = TimeEntry.new(:hours => k)
       assert_equal v, t.hours, "Converting #{k} failed:"
     end
+  end
+  
+  def test_hours_should_default_to_nil
+    assert_nil TimeEntry.new.hours
   end
 end

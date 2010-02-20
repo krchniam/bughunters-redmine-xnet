@@ -21,8 +21,8 @@ require 'versions_controller'
 # Re-raise errors caught by the controller.
 class VersionsController; def rescue_action(e) raise e end; end
 
-class VersionsControllerTest < Test::Unit::TestCase
-  fixtures :projects, :versions, :issues, :users, :roles, :members, :enabled_modules
+class VersionsControllerTest < ActionController::TestCase
+  fixtures :projects, :versions, :issues, :users, :roles, :members, :member_roles, :enabled_modules
   
   def setup
     @controller = VersionsController.new
@@ -47,12 +47,20 @@ class VersionsControllerTest < Test::Unit::TestCase
     assert_template 'edit'
   end
   
+  def test_close_completed
+    Version.update_all("status = 'open'")
+    @request.session[:user_id] = 2
+    post :close_completed, :project_id => 'ecookbook'
+    assert_redirected_to :controller => 'projects', :action => 'settings', :tab => 'versions', :id => 'ecookbook'
+    assert_not_nil Version.find_by_status('closed')
+  end
+  
   def test_post_edit
     @request.session[:user_id] = 2
     post :edit, :id => 2, 
                 :version => { :name => 'New version name', 
                               :effective_date => Date.today.strftime("%Y-%m-%d")}
-    assert_redirected_to 'projects/settings/ecookbook'
+    assert_redirected_to :controller => 'projects', :action => 'settings', :tab => 'versions', :id => 'ecookbook'
     version = Version.find(2)
     assert_equal 'New version name', version.name
     assert_equal Date.today, version.effective_date
@@ -61,7 +69,7 @@ class VersionsControllerTest < Test::Unit::TestCase
   def test_destroy
     @request.session[:user_id] = 2
     post :destroy, :id => 3
-    assert_redirected_to 'projects/settings/ecookbook'
+    assert_redirected_to :controller => 'projects', :action => 'settings', :tab => 'versions', :id => 'ecookbook'
     assert_nil Version.find_by_id(3)
   end
   

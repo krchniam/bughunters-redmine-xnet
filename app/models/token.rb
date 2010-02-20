@@ -1,5 +1,5 @@
-# redMine - project management software
-# Copyright (C) 2006  Jean-Philippe Lang
+# Redmine - project management software
+# Copyright (C) 2006-2009  Jean-Philippe Lang
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -15,11 +15,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-require 'rails_generator/secret_key_generator'
-
 class Token < ActiveRecord::Base
   belongs_to :user
   validates_uniqueness_of :value
+  
+  before_create :delete_previous_tokens
   
   @@validity_time = 1.day
   
@@ -39,7 +39,13 @@ class Token < ActiveRecord::Base
   
 private
   def self.generate_token_value
-    s = Rails::SecretKeyGenerator.new(object_id).generate_secret
-    s[0, 40]
+    ActiveSupport::SecureRandom.hex(20)
+  end
+  
+  # Removes obsolete tokens (same user and action)
+  def delete_previous_tokens
+    if user
+      Token.delete_all(['user_id = ? AND action = ?', user.id, action])
+    end
   end
 end

@@ -31,13 +31,13 @@ class ReportsController < ApplicationController
       render :template => "reports/issue_report_details"
     when "version"
       @field = "fixed_version_id"
-      @rows = @project.versions.sort
+      @rows = @project.shared_versions.sort
       @data = issues_by_version
       @report_title = l(:field_version)
       render :template => "reports/issue_report_details"
     when "priority"
       @field = "priority_id"
-      @rows = Enumeration::get_values('IPRI')
+      @rows = IssuePriority.all
       @data = issues_by_priority
       @report_title = l(:field_priority)
       render :template => "reports/issue_report_details"   
@@ -49,30 +49,30 @@ class ReportsController < ApplicationController
       render :template => "reports/issue_report_details"   
     when "assigned_to"
       @field = "assigned_to_id"
-      @rows = @project.members.collect { |m| m.user }
+      @rows = @project.members.collect { |m| m.user }.sort
       @data = issues_by_assigned_to
       @report_title = l(:field_assigned_to)
       render :template => "reports/issue_report_details"
     when "author"
       @field = "author_id"
-      @rows = @project.members.collect { |m| m.user }
+      @rows = @project.members.collect { |m| m.user }.sort
       @data = issues_by_author
       @report_title = l(:field_author)
       render :template => "reports/issue_report_details"  
     when "subproject"
       @field = "project_id"
-      @rows = @project.active_children
+      @rows = @project.descendants.active
       @data = issues_by_subproject
       @report_title = l(:field_subproject)
       render :template => "reports/issue_report_details"  
     else
       @trackers = @project.trackers
-      @versions = @project.versions.sort
-      @priorities = Enumeration::get_values('IPRI')
+      @versions = @project.shared_versions.sort
+      @priorities = IssuePriority.all
       @categories = @project.issue_categories
-      @assignees = @project.members.collect { |m| m.user }
-      @authors = @project.members.collect { |m| m.user }
-      @subprojects = @project.active_children
+      @assignees = @project.members.collect { |m| m.user }.sort
+      @authors = @project.members.collect { |m| m.user }.sort
+      @subprojects = @project.descendants.active
       issues_by_tracker
       issues_by_version
       issues_by_priority
@@ -84,42 +84,6 @@ class ReportsController < ApplicationController
       render :template => "reports/issue_report"
     end
   end  
-  
-  def delays
-    @trackers = Tracker.find(:all)
-    if request.get?
-      @selected_tracker_ids = @trackers.collect {|t| t.id.to_s }
-    else
-      @selected_tracker_ids = params[:tracker_ids].collect { |id| id.to_i.to_s } if params[:tracker_ids] and params[:tracker_ids].is_a? Array
-    end
-    @selected_tracker_ids ||= []    
-    @raw = 
-      ActiveRecord::Base.connection.select_all("SELECT datediff( a.created_on, b.created_on ) as delay, count(a.id) as total
-      FROM issue_histories a, issue_histories b, issues i
-      WHERE a.status_id =5
-      AND a.issue_id = b.issue_id
-      AND a.issue_id = i.id
-      AND i.tracker_id in (#{@selected_tracker_ids.join(',')})
-      AND b.id = (
-      SELECT min( c.id )
-      FROM issue_histories c
-      WHERE b.issue_id = c.issue_id ) 
-      GROUP BY delay") unless @selected_tracker_ids.empty?    
-    @raw ||=[]
-    
-    @x_from = 0
-    @x_to = 0
-    @y_from = 0
-    @y_to = 0
-    @sum_total = 0
-    @sum_delay = 0
-    @raw.each do |r|
-      @x_to = [r['delay'].to_i, @x_to].max
-      @y_to = [r['total'].to_i, @y_to].max
-      @sum_total = @sum_total + r['total'].to_i
-      @sum_delay = @sum_delay + r['total'].to_i * r['delay'].to_i
-    end    
-  end
   
 private
   # Find project of id params[:id]
@@ -166,7 +130,7 @@ private
                                                   p.id as priority_id,
                                                   count(i.id) as total 
                                                 from 
-                                                  #{Issue.table_name} i, #{IssueStatus.table_name} s, #{Enumeration.table_name} p
+                                                  #{Issue.table_name} i, #{IssueStatus.table_name} s, #{IssuePriority.table_name} p
                                                 where 
                                                   i.status_id=s.id 
                                                   and i.priority_id=p.id
@@ -229,8 +193,8 @@ private
                                                   #{Issue.table_name} i, #{IssueStatus.table_name} s
                                                 where 
                                                   i.status_id=s.id 
-                                                  and i.project_id IN (#{@project.active_children.collect{|p| p.id}.join(',')})
-                                                group by s.id, s.is_closed, i.project_id") if @project.active_children.any?
+                                                  and i.project_id IN (#{@project.descendants.active.collect{|p| p.id}.join(',')})
+                                                group by s.id, s.is_closed, i.project_id") if @project.descendants.active.any?
     @issues_by_subproject ||= []
   end
 end

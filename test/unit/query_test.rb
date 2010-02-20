@@ -17,8 +17,8 @@
 
 require File.dirname(__FILE__) + '/../test_helper'
 
-class QueryTest < Test::Unit::TestCase
-  fixtures :projects, :enabled_modules, :users, :members, :roles, :trackers, :issue_statuses, :issue_categories, :enumerations, :issues, :custom_fields, :custom_values, :versions, :queries
+class QueryTest < ActiveSupport::TestCase
+  fixtures :projects, :enabled_modules, :users, :members, :member_roles, :roles, :trackers, :issue_statuses, :issue_categories, :enumerations, :issues, :watchers, :custom_fields, :custom_values, :versions, :queries
 
   def test_custom_fields_for_all_projects_should_be_available_in_global_queries
     query = Query.new(:project => nil, :name => '_')
@@ -30,6 +30,14 @@ class QueryTest < Test::Unit::TestCase
     Issue.find :all,
       :include => [ :assigned_to, :status, :tracker, :project, :priority ], 
       :conditions => query.statement
+  end
+
+  def test_query_should_allow_shared_versions_for_a_project_query
+    subproject_version = Version.find(4)
+    query = Query.new(:project => Project.find(1), :name => '_')
+    query.add_filter('fixed_version_id', '=', [subproject_version.id.to_s])
+
+    assert query.statement.include?("#{Issue.table_name}.fixed_version_id IN ('4')")
   end
   
   def test_query_with_multiple_custom_fields
@@ -164,6 +172,26 @@ class QueryTest < Test::Unit::TestCase
     find_issues_with_query(query)
   end
   
+  def test_filter_watched_issues
+    User.current = User.find(1)
+    query = Query.new(:name => '_', :filters => { 'watcher_id' => {:operator => '=', :values => ['me']}})
+    result = find_issues_with_query(query)
+    assert_not_nil result
+    assert !result.empty?
+    assert_equal Issue.visible.watched_by(User.current).sort_by(&:id), result.sort_by(&:id)
+    User.current = nil
+  end
+  
+  def test_filter_unwatched_issues
+    User.current = User.find(1)
+    query = Query.new(:name => '_', :filters => { 'watcher_id' => {:operator => '!', :values => ['me']}})
+    result = find_issues_with_query(query)
+    assert_not_nil result
+    assert !result.empty?
+    assert_equal((Issue.visible - Issue.watched_by(User.current)).sort_by(&:id).size, result.sort_by(&:id).size)
+    User.current = nil
+  end
+  
   def test_default_columns
     q = Query.new
     assert !q.columns.empty? 
@@ -175,6 +203,111 @@ class QueryTest < Test::Unit::TestCase
     assert_equal [:tracker, :subject], q.columns.collect {|c| c.name}
     c = q.columns.first
     assert q.has_column?(c)
+  end
+  
+  def test_groupable_columns_should_include_custom_fields
+    q = Query.new
+    assert q.groupable_columns.detect {|c| c.is_a? QueryCustomFieldColumn}
+  end
+  
+  def test_default_sort
+    q = Query.new
+    assert_equal [], q.sort_criteria
+  end
+  
+  def test_set_sort_criteria_with_hash
+    q = Query.new
+    q.sort_criteria = {'0' => ['priority', 'desc'], '2' => ['tracker']}
+    assert_equal [['priority', 'desc'], ['tracker', 'asc']], q.sort_criteria
+  end
+  
+  def test_set_sort_criteria_with_array
+    q = Query.new
+    q.sort_criteria = [['priority', 'desc'], 'tracker']
+    assert_equal [['priority', 'desc'], ['tracker', 'asc']], q.sort_criteria
+  end
+  
+  def test_create_query_with_sort
+    q = Query.new(:name => 'Sorted')
+    q.sort_criteria = [['priority', 'desc'], 'tracker']
+    assert q.save
+    q.reload
+    assert_equal [['priority', 'desc'], ['tracker', 'asc']], q.sort_criteria
+  end
+  
+  def test_sort_by_string_custom_field_asc
+    q = Query.new
+    c = q.available_columns.find {|col| col.is_a?(QueryCustomFieldColumn) && col.custom_field.field_format == 'string' }
+    assert c
+    assert c.sortable
+    issues = Issue.find :all,
+                        :include => [ :assigned_to, :status, :tracker, :project, :priority ], 
+                        :conditions => q.statement,
+                        :order => "#{c.sortable} ASC"
+    values = issues.collect {|i| i.custom_value_for(c.custom_field).to_s}
+    assert !values.empty?
+    assert_equal values.sort, values
+  end
+  
+  def test_sort_by_string_custom_field_desc
+    q = Query.new
+    c = q.available_columns.find {|col| col.is_a?(QueryCustomFieldColumn) && col.custom_field.field_format == 'string' }
+    assert c
+    assert c.sortable
+    issues = Issue.find :all,
+                        :include => [ :assigned_to, :status, :tracker, :project, :priority ], 
+                        :conditions => q.statement,
+                        :order => "#{c.sortable} DESC"
+    values = issues.collect {|i| i.custom_value_for(c.custom_field).to_s}
+    assert !values.empty?
+    assert_equal values.sort.reverse, values
+  end
+  
+  def test_sort_by_float_custom_field_asc
+    q = Query.new
+    c = q.available_columns.find {|col| col.is_a?(QueryCustomFieldColumn) && col.custom_field.field_format == 'float' }
+    assert c
+    assert c.sortable
+    issues = Issue.find :all,
+                        :include => [ :assigned_to, :status, :tracker, :project, :priority ], 
+                        :conditions => q.statement,
+                        :order => "#{c.sortable} ASC"
+    values = issues.collect {|i| begin; Kernel.Float(i.custom_value_for(c.custom_field).to_s); rescue; nil; end}.compact
+    assert !values.empty?
+    assert_equal values.sort, values
+  end
+  
+  def test_invalid_query_should_raise_query_statement_invalid_error
+    q = Query.new
+    assert_raise Query::StatementInvalid do
+      q.issues(:conditions => "foo = 1")
+    end
+  end
+  
+  def test_issue_count_by_association_group
+    q = Query.new(:name => '_', :group_by => 'assigned_to')
+    count_by_group = q.issue_count_by_group
+    assert_kind_of Hash, count_by_group
+    assert_equal %w(NilClass User), count_by_group.keys.collect {|k| k.class.name}.uniq.sort
+    assert_equal %w(Fixnum), count_by_group.values.collect {|k| k.class.name}.uniq
+    assert count_by_group.has_key?(User.find(3))
+  end
+
+  def test_issue_count_by_list_custom_field_group
+    q = Query.new(:name => '_', :group_by => 'cf_1')
+    count_by_group = q.issue_count_by_group
+    assert_kind_of Hash, count_by_group
+    assert_equal %w(NilClass String), count_by_group.keys.collect {|k| k.class.name}.uniq.sort
+    assert_equal %w(Fixnum), count_by_group.values.collect {|k| k.class.name}.uniq
+    assert count_by_group.has_key?('MySQL')
+  end
+  
+  def test_issue_count_by_date_custom_field_group
+    q = Query.new(:name => '_', :group_by => 'cf_8')
+    count_by_group = q.issue_count_by_group
+    assert_kind_of Hash, count_by_group
+    assert_equal %w(Date NilClass), count_by_group.keys.collect {|k| k.class.name}.uniq.sort
+    assert_equal %w(Fixnum), count_by_group.values.collect {|k| k.class.name}.uniq
   end
   
   def test_label_for

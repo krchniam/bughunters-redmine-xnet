@@ -17,15 +17,15 @@
 
 require File.dirname(__FILE__) + '/../test_helper'
 
-class EnumerationTest < Test::Unit::TestCase
-  fixtures :enumerations, :issues
+class EnumerationTest < ActiveSupport::TestCase
+  fixtures :enumerations, :issues, :custom_fields, :custom_values
 
   def setup
   end
   
   def test_objects_count
     # low priority
-    assert_equal 5, Enumeration.find(4).objects_count
+    assert_equal 6, Enumeration.find(4).objects_count
     # urgent
     assert_equal 0, Enumeration.find(7).objects_count
   end
@@ -38,45 +38,74 @@ class EnumerationTest < Test::Unit::TestCase
   end
   
   def test_default
-    e = Enumeration.default('IPRI')
+    e = Enumeration.default
     assert e.is_a?(Enumeration)
     assert e.is_default?
-    assert_equal 'Normal', e.name
+    assert_equal 'Default Enumeration', e.name
   end
   
   def test_create
-    e = Enumeration.new(:opt => 'IPRI', :name => 'Very urgent', :is_default => false)
+    e = Enumeration.new(:name => 'Not default', :is_default => false)
+    e.type = 'Enumeration'
     assert e.save
-    assert_equal 'Normal', Enumeration.default('IPRI').name
+    assert_equal 'Default Enumeration', Enumeration.default.name
   end
   
   def test_create_as_default
-    e = Enumeration.new(:opt => 'IPRI', :name => 'Very urgent', :is_default => true)
+    e = Enumeration.new(:name => 'Very urgent', :is_default => true)
+    e.type = 'Enumeration'
     assert e.save
-    assert_equal e, Enumeration.default('IPRI')
+    assert_equal e, Enumeration.default
   end
   
   def test_update_default
-    e = Enumeration.default('IPRI')
+    e = Enumeration.default
     e.update_attributes(:name => 'Changed', :is_default => true)
-    assert_equal e, Enumeration.default('IPRI')
+    assert_equal e, Enumeration.default
   end
   
   def test_update_default_to_non_default
-    e = Enumeration.default('IPRI')
+    e = Enumeration.default
     e.update_attributes(:name => 'Changed', :is_default => false)
-    assert_nil Enumeration.default('IPRI')
+    assert_nil Enumeration.default
   end
   
   def test_change_default
-    e = Enumeration.find_by_name('Urgent')
-    e.update_attributes(:name => 'Urgent', :is_default => true)
-    assert_equal e, Enumeration.default('IPRI')
+    e = Enumeration.find_by_name('Default Enumeration')
+    e.update_attributes(:name => 'Changed Enumeration', :is_default => true)
+    assert_equal e, Enumeration.default
   end
   
   def test_destroy_with_reassign
     Enumeration.find(4).destroy(Enumeration.find(6))
     assert_nil Issue.find(:first, :conditions => {:priority_id => 4})
-    assert_equal 5, Enumeration.find(6).objects_count
+    assert_equal 6, Enumeration.find(6).objects_count
+  end
+
+  def test_should_be_customizable
+    assert Enumeration.included_modules.include?(Redmine::Acts::Customizable::InstanceMethods)
+  end
+
+  def test_should_belong_to_a_project
+    association = Enumeration.reflect_on_association(:project)
+    assert association, "No Project association found"
+    assert_equal :belongs_to, association.macro
+  end
+
+  def test_should_act_as_tree
+    enumeration = Enumeration.find(4)
+
+    assert enumeration.respond_to?(:parent)
+    assert enumeration.respond_to?(:children)
+  end
+
+  def test_is_override
+    # Defaults to off
+    enumeration = Enumeration.find(4)
+    assert !enumeration.is_override?
+
+    # Setup as an override
+    enumeration.parent = Enumeration.find(5)
+    assert enumeration.is_override?
   end
 end

@@ -46,7 +46,9 @@ class Attachment < ActiveRecord::Base
   @@storage_path = "#{RAILS_ROOT}/files"
   
   def validate
-    errors.add_to_base :too_long if self.filesize > Setting.attachment_max_size.to_i.kilobytes
+    if self.filesize > Setting.attachment_max_size.to_i.kilobytes
+      errors.add(:base, :too_long, :count => Setting.attachment_max_size.to_i.kilobytes)
+    end
   end
 
   def file=(incoming_file)
@@ -56,6 +58,9 @@ class Attachment < ActiveRecord::Base
         self.filename = sanitize_filename(@temp_file.original_filename)
         self.disk_filename = Attachment.disk_filename(filename)
         self.content_type = @temp_file.content_type.to_s.chomp
+        if content_type.blank?
+          self.content_type = Redmine::MimeType.of(filename)
+        end
         self.filesize = @temp_file.size
       end
     end
@@ -122,6 +127,11 @@ class Attachment < ActiveRecord::Base
   
   def is_diff?
     self.filename =~ /\.(patch|diff)$/i
+  end
+  
+  # Returns true if the file is readable
+  def readable?
+    File.readable?(diskfile)
   end
   
 private

@@ -25,7 +25,7 @@ class Repository < ActiveRecord::Base
   before_destroy :clear_changesets
   
   # Checks if the SCM is enabled when creating a repository
-  validate_on_create { |r| r.errors.add(:type, :activerecord_error_invalid) unless Setting.enabled_scm.include?(r.class.name.demodulize) }
+  validate_on_create { |r| r.errors.add(:type, :invalid) unless Setting.enabled_scm.include?(r.class.name.demodulize) }
   
   # Removes leading and trailing whitespace
   def url=(arg)
@@ -62,6 +62,18 @@ class Repository < ActiveRecord::Base
   def entries(path=nil, identifier=nil)
     scm.entries(path, identifier)
   end
+
+  def branches
+    scm.branches
+  end
+
+  def tags
+    scm.tags
+  end
+
+  def default_branch
+    scm.default_branch
+  end
   
   def properties(path, identifier=nil)
     scm.properties(path, identifier)
@@ -75,27 +87,39 @@ class Repository < ActiveRecord::Base
     scm.diff(path, rev, rev_to)
   end
   
-  # Default behaviour: we search in cached changesets
-  def changesets_for_path(path)
-    path = "/#{path}" unless path.starts_with?('/')
-    Change.find(:all, :include => {:changeset => :user}, 
-      :conditions => ["repository_id = ? AND path = ?", id, path],
-      :order => "committed_on DESC, #{Changeset.table_name}.id DESC").collect(&:changeset)
-  end
-  
   # Returns a path relative to the url of the repository
   def relative_path(path)
     path
   end
   
+  # Finds and returns a revision with a number or the beginning of a hash
+  def find_changeset_by_name(name)
+    changesets.find(:first, :conditions => (name.match(/^\d*$/) ? ["revision = ?", name.to_s] : ["revision LIKE ?", name + '%']))
+  end
+  
   def latest_changeset
     @latest_changeset ||= changesets.find(:first)
+  end
+
+  # Returns the latest changesets for +path+
+  # Default behaviour is to search in cached changesets
+  def latest_changesets(path, rev, limit=10)
+    if path.blank?
+      changesets.find(:all, :include => :user,
+                            :order => "#{Changeset.table_name}.committed_on DESC, #{Changeset.table_name}.id DESC",
+                            :limit => limit)
+    else
+      changes.find(:all, :include => {:changeset => :user}, 
+                         :conditions => ["path = ?", path.with_leading_slash],
+                         :order => "#{Changeset.table_name}.committed_on DESC, #{Changeset.table_name}.id DESC",
+                         :limit => limit).collect(&:changeset)
+    end
   end
     
   def scan_changesets_for_issue_ids
     self.changesets.each(&:scan_comment_for_issue_ids)
   end
-  
+
   # Returns an array of committers usernames and associated user_id
   def committers
     @committers ||= Changeset.connection.select_rows("SELECT DISTINCT committer, user_id FROM #{Changeset.table_name} WHERE repository_id = #{id}")
@@ -172,8 +196,9 @@ class Repository < ActiveRecord::Base
   end
   
   def clear_changesets
-    connection.delete("DELETE FROM changes WHERE changes.changeset_id IN (SELECT changesets.id FROM changesets WHERE changesets.repository_id = #{id})")
-    connection.delete("DELETE FROM changesets_issues WHERE changesets_issues.changeset_id IN (SELECT changesets.id FROM changesets WHERE changesets.repository_id = #{id})")
-    connection.delete("DELETE FROM changesets WHERE changesets.repository_id = #{id}")
+    cs, ch, ci = Changeset.table_name, Change.table_name, "#{table_name_prefix}changesets_issues#{table_name_suffix}"
+    connection.delete("DELETE FROM #{ch} WHERE #{ch}.changeset_id IN (SELECT #{cs}.id FROM #{cs} WHERE #{cs}.repository_id = #{id})")
+    connection.delete("DELETE FROM #{ci} WHERE #{ci}.changeset_id IN (SELECT #{cs}.id FROM #{cs} WHERE #{cs}.repository_id = #{id})")
+    connection.delete("DELETE FROM #{cs} WHERE #{cs}.repository_id = #{id}")
   end
 end

@@ -17,9 +17,10 @@
 
 require File.dirname(__FILE__) + '/../test_helper'
 
-class SearchTest < Test::Unit::TestCase
+class SearchTest < ActiveSupport::TestCase
   fixtures :users,
-           :members,
+           :members, 
+           :member_roles,
            :projects,
            :roles,
            :enabled_modules,

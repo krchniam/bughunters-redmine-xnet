@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class NewsController < ApplicationController
+  default_search_scope :news
   before_filter :find_news, :except => [:new, :index, :preview]
   before_filter :find_project, :only => [:new, :preview]
   before_filter :authorize, :except => [:index, :preview]
@@ -25,11 +26,13 @@ class NewsController < ApplicationController
   def index
     @news_pages, @newss = paginate :news,
                                    :per_page => 10,
-                                   :conditions => (@project ? {:project_id => @project.id} : Project.visible_by(User.current)),
+                                   :conditions => Project.allowed_to_condition(User.current, :view_news, :project => @project),
                                    :include => [:author, :project],
                                    :order => "#{News.table_name}.created_on DESC"    
     respond_to do |format|
       format.html { render :layout => false if request.xhr? }
+      format.xml { render :xml => @newss.to_xml }
+      format.json { render :json => @newss.to_json }
       format.atom { render_feed(@newss, :title => (@project ? @project.name : Setting.app_title) + ": #{l(:label_news_plural)}") }
     end
   end
@@ -45,7 +48,6 @@ class NewsController < ApplicationController
       @news.attributes = params[:news]
       if @news.save
         flash[:notice] = l(:notice_successful_create)
-        Mailer.deliver_news_added(@news) if Setting.notified_events.include?('news_added')
         redirect_to :controller => 'news', :action => 'index', :project_id => @project
       end
     end

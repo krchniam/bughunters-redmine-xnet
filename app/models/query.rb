@@ -16,18 +16,30 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class QueryColumn  
-  attr_accessor :name, :sortable, :default_order
-  include GLoc
+  attr_accessor :name, :sortable, :groupable, :default_order
+  include Redmine::I18n
   
   def initialize(name, options={})
     self.name = name
     self.sortable = options[:sortable]
+    self.groupable = options[:groupable] || false
+    if groupable == true
+      self.groupable = name.to_s
+    end
     self.default_order = options[:default_order]
   end
   
   def caption
-    set_language_if_valid(User.current.language)
     l("field_#{name}")
+  end
+  
+  # Returns true if the column is sortable, otherwise false
+  def sortable?
+    !sortable.nil?
+  end
+  
+  def value(issue)
+    issue.send name
   end
 end
 
@@ -35,7 +47,11 @@ class QueryCustomFieldColumn < QueryColumn
 
   def initialize(custom_field)
     self.name = "cf_#{custom_field.id}".to_sym
-    self.sortable = false
+    self.sortable = custom_field.order_statement || false
+    if %w(list date bool int).include?(custom_field.field_format)
+      self.groupable = custom_field.order_statement
+    end
+    self.groupable ||= false
     @cf = custom_field
   end
   
@@ -46,13 +62,22 @@ class QueryCustomFieldColumn < QueryColumn
   def custom_field
     @cf
   end
+  
+  def value(issue)
+    cv = issue.custom_values.detect {|v| v.custom_field_id == @cf.id}
+    cv && @cf.cast_value(cv.value)
+  end
 end
 
 class Query < ActiveRecord::Base
+  class StatementInvalid < ::ActiveRecord::StatementInvalid
+  end
+  
   belongs_to :project
   belongs_to :user
   serialize :filters
   serialize :column_names
+  serialize :sort_criteria, Array
   
   attr_protected :project_id, :user_id
   
@@ -65,8 +90,8 @@ class Query < ActiveRecord::Base
                   "c"   => :label_closed_issues,
                   "!*"  => :label_none,
                   "*"   => :label_all,
-                  ">="   => '>=',
-                  "<="   => '<=',
+                  ">="  => :label_greater_or_equal,
+                  "<="  => :label_less_or_equal,
                   "<t+" => :label_in_less_than,
                   ">t+" => :label_in_more_than,
                   "t+"  => :label_in,
@@ -93,20 +118,20 @@ class Query < ActiveRecord::Base
   cattr_reader :operators_by_filter_type
 
   @@available_columns = [
-    QueryColumn.new(:project, :sortable => "#{Project.table_name}.name"),
-    QueryColumn.new(:tracker, :sortable => "#{Tracker.table_name}.position"),
-    QueryColumn.new(:status, :sortable => "#{IssueStatus.table_name}.position"),
-    QueryColumn.new(:priority, :sortable => "#{Enumeration.table_name}.position", :default_order => 'desc'),
+    QueryColumn.new(:project, :sortable => "#{Project.table_name}.name", :groupable => true),
+    QueryColumn.new(:tracker, :sortable => "#{Tracker.table_name}.position", :groupable => true),
+    QueryColumn.new(:status, :sortable => "#{IssueStatus.table_name}.position", :groupable => true),
+    QueryColumn.new(:priority, :sortable => "#{IssuePriority.table_name}.position", :default_order => 'desc', :groupable => true),
     QueryColumn.new(:subject, :sortable => "#{Issue.table_name}.subject"),
     QueryColumn.new(:author),
-    QueryColumn.new(:assigned_to, :sortable => "#{User.table_name}.lastname"),
+    QueryColumn.new(:assigned_to, :sortable => ["#{User.table_name}.lastname", "#{User.table_name}.firstname", "#{User.table_name}.id"], :groupable => true),
     QueryColumn.new(:updated_on, :sortable => "#{Issue.table_name}.updated_on", :default_order => 'desc'),
-    QueryColumn.new(:category, :sortable => "#{IssueCategory.table_name}.name"),
-    QueryColumn.new(:fixed_version, :sortable => "#{Version.table_name}.effective_date", :default_order => 'desc'),
+    QueryColumn.new(:category, :sortable => "#{IssueCategory.table_name}.name", :groupable => true),
+    QueryColumn.new(:fixed_version, :sortable => ["#{Version.table_name}.effective_date", "#{Version.table_name}.name"], :default_order => 'desc', :groupable => true),
     QueryColumn.new(:start_date, :sortable => "#{Issue.table_name}.start_date"),
     QueryColumn.new(:due_date, :sortable => "#{Issue.table_name}.due_date"),
     QueryColumn.new(:estimated_hours, :sortable => "#{Issue.table_name}.estimated_hours"),
-    QueryColumn.new(:done_ratio, :sortable => "#{Issue.table_name}.done_ratio"),
+    QueryColumn.new(:done_ratio, :sortable => "#{Issue.table_name}.done_ratio", :groupable => true),
     QueryColumn.new(:created_on, :sortable => "#{Issue.table_name}.created_on", :default_order => 'desc'),
   ]
   cattr_reader :available_columns
@@ -114,7 +139,6 @@ class Query < ActiveRecord::Base
   def initialize(attributes = nil)
     super attributes
     self.filters ||= { 'status_id' => {:operator => "o", :values => [""]} }
-    set_language_if_valid(User.current.language)
   end
   
   def after_initialize
@@ -124,7 +148,7 @@ class Query < ActiveRecord::Base
   
   def validate
     filters.each_key do |field|
-      errors.add label_for(field), :activerecord_error_blank unless 
+      errors.add label_for(field), :blank unless 
           # filter requires one or more values
           (values_for(field) and !values_for(field).first.blank?) or 
           # filter doesn't require any value
@@ -147,7 +171,7 @@ class Query < ActiveRecord::Base
     
     @available_filters = { "status_id" => { :type => :list_status, :order => 1, :values => IssueStatus.find(:all, :order => 'position').collect{|s| [s.name, s.id.to_s] } },       
                            "tracker_id" => { :type => :list, :order => 2, :values => trackers.collect{|s| [s.name, s.id.to_s] } },                                                                                                                
-                           "priority_id" => { :type => :list, :order => 3, :values => Enumeration.find(:all, :conditions => ['opt=?','IPRI'], :order => 'position').collect{|s| [s.name, s.id.to_s] } },
+                           "priority_id" => { :type => :list, :order => 3, :values => IssuePriority.all.collect{|s| [s.name, s.id.to_s] } },
                            "subject" => { :type => :text, :order => 8 },  
                            "created_on" => { :type => :date_past, :order => 9 },                        
                            "updated_on" => { :type => :date_past, :order => 10 },
@@ -162,21 +186,26 @@ class Query < ActiveRecord::Base
       user_values += project.users.sort.collect{|s| [s.name, s.id.to_s] }
     else
       # members of the user's projects
+      # OPTIMIZE: Is selecting from users per project (N+1)
       user_values += User.current.projects.collect(&:users).flatten.uniq.sort.collect{|s| [s.name, s.id.to_s] }
     end
     @available_filters["assigned_to_id"] = { :type => :list_optional, :order => 4, :values => user_values } unless user_values.empty?
     @available_filters["author_id"] = { :type => :list, :order => 5, :values => user_values } unless user_values.empty?
+    
+    if User.current.logged?
+      @available_filters["watcher_id"] = { :type => :list, :order => 15, :values => [["<< #{l(:label_me)} >>", "me"]] }
+    end
   
     if project
       # project specific filters
       unless @project.issue_categories.empty?
         @available_filters["category_id"] = { :type => :list_optional, :order => 6, :values => @project.issue_categories.collect{|s| [s.name, s.id.to_s] } }
       end
-      unless @project.versions.empty?
-        @available_filters["fixed_version_id"] = { :type => :list_optional, :order => 7, :values => @project.versions.sort.collect{|s| [s.name, s.id.to_s] } }
+      unless @project.shared_versions.empty?
+        @available_filters["fixed_version_id"] = { :type => :list_optional, :order => 7, :values => @project.shared_versions.sort.collect{|s| ["#{s.project.name} - #{s.name}", s.id.to_s] } }
       end
-      unless @project.active_children.empty?
-        @available_filters["subproject_id"] = { :type => :list_subprojects, :order => 13, :values => @project.active_children.collect{|s| [s.name, s.id.to_s] } }
+      unless @project.descendants.active.empty?
+        @available_filters["subproject_id"] = { :type => :list_subprojects, :order => 13, :values => @project.descendants.visible.collect{|s| [s.name, s.id.to_s] } }
       end
       add_custom_fields_filters(@project.all_issue_custom_fields)
     else
@@ -203,7 +232,7 @@ class Query < ActiveRecord::Base
   
   def add_short_filter(field, expression)
     return unless expression
-    parms = expression.scan(/^(o|c|\!|\*)?(.*)$/).first
+    parms = expression.scan(/^(o|c|!\*|!|\*)?(.*)$/).first
     add_filter field, (parms[0] || "="), [parms[1] || ""]
   end
   
@@ -229,8 +258,13 @@ class Query < ActiveRecord::Base
     @available_columns = Query.available_columns
     @available_columns += (project ? 
                             project.all_issue_custom_fields :
-                            IssueCustomField.find(:all, :conditions => {:is_for_all => true})
+                            IssueCustomField.find(:all)
                            ).collect {|cf| QueryCustomFieldColumn.new(cf) }      
+  end
+  
+  # Returns an array of columns that can be used to group the results
+  def groupable_columns
+    available_columns.select {|c| c.groupable}
   end
   
   def columns
@@ -246,8 +280,14 @@ class Query < ActiveRecord::Base
   end
   
   def column_names=(names)
-    names = names.select {|n| n.is_a?(Symbol) || !n.blank? } if names
-    names = names.collect {|n| n.is_a?(Symbol) ? n : n.to_sym } if names
+    if names
+      names = names.select {|n| n.is_a?(Symbol) || !n.blank? }
+      names = names.collect {|n| n.is_a?(Symbol) ? n : n.to_sym }
+      # Set column_names to nil if default columns
+      if names.map(&:to_s) == Setting.issue_list_default_columns
+        names = nil
+      end
+    end
     write_attribute(:column_names, names)
   end
   
@@ -259,9 +299,52 @@ class Query < ActiveRecord::Base
     column_names.nil? || column_names.empty?
   end
   
+  def sort_criteria=(arg)
+    c = []
+    if arg.is_a?(Hash)
+      arg = arg.keys.sort.collect {|k| arg[k]}
+    end
+    c = arg.select {|k,o| !k.to_s.blank?}.slice(0,3).collect {|k,o| [k.to_s, o == 'desc' ? o : 'asc']}
+    write_attribute(:sort_criteria, c)
+  end
+  
+  def sort_criteria
+    read_attribute(:sort_criteria) || []
+  end
+  
+  def sort_criteria_key(arg)
+    sort_criteria && sort_criteria[arg] && sort_criteria[arg].first
+  end
+  
+  def sort_criteria_order(arg)
+    sort_criteria && sort_criteria[arg] && sort_criteria[arg].last
+  end
+  
+  # Returns the SQL sort order that should be prepended for grouping
+  def group_by_sort_order
+    if grouped? && (column = group_by_column)
+      column.sortable.is_a?(Array) ?
+        column.sortable.collect {|s| "#{s} #{column.default_order}"}.join(',') :
+        "#{column.sortable} #{column.default_order}"
+    end
+  end
+  
+  # Returns true if the query is a grouped query
+  def grouped?
+    !group_by.blank?
+  end
+  
+  def group_by_column
+    groupable_columns.detect {|c| c.name.to_s == group_by}
+  end
+  
+  def group_by_statement
+    group_by_column.groupable
+  end
+  
   def project_statement
     project_clauses = []
-    if project && !@project.active_children.empty?
+    if project && !@project.descendants.active.empty?
       ids = [project.id]
       if has_filter?("subproject_id")
         case operator_for("subproject_id")
@@ -272,10 +355,10 @@ class Query < ActiveRecord::Base
           # main project only
         else
           # all subprojects
-          ids += project.child_ids
+          ids += project.descendants.collect(&:id)
         end
       elsif Setting.display_subprojects_issues?
-        ids += project.child_ids
+        ids += project.descendants.collect(&:id)
       end
       project_clauses << "#{Project.table_name}.id IN (%s)" % ids.join(',')
     elsif project
@@ -292,42 +375,108 @@ class Query < ActiveRecord::Base
       next if field == "subproject_id"
       v = values_for(field).clone
       next unless v and !v.empty?
-            
+      operator = operator_for(field)
+      
+      # "me" value subsitution
+      if %w(assigned_to_id author_id watcher_id).include?(field)
+        v.push(User.current.logged? ? User.current.id.to_s : "0") if v.delete("me")
+      end
+      
       sql = ''
-      is_custom_filter = false
       if field =~ /^cf_(\d+)$/
         # custom field
         db_table = CustomValue.table_name
         db_field = 'value'
         is_custom_filter = true
         sql << "#{Issue.table_name}.id IN (SELECT #{Issue.table_name}.id FROM #{Issue.table_name} LEFT OUTER JOIN #{db_table} ON #{db_table}.customized_type='Issue' AND #{db_table}.customized_id=#{Issue.table_name}.id AND #{db_table}.custom_field_id=#{$1} WHERE "
+        sql << sql_for_field(field, operator, v, db_table, db_field, true) + ')'
+      elsif field == 'watcher_id'
+        db_table = Watcher.table_name
+        db_field = 'user_id'
+        sql << "#{Issue.table_name}.id #{ operator == '=' ? 'IN' : 'NOT IN' } (SELECT #{db_table}.watchable_id FROM #{db_table} WHERE #{db_table}.watchable_type='Issue' AND "
+        sql << sql_for_field(field, '=', v, db_table, db_field) + ')'
       else
         # regular field
         db_table = Issue.table_name
         db_field = field
-        sql << '('
+        sql << '(' + sql_for_field(field, operator, v, db_table, db_field) + ')'
       end
-      
-      # "me" value subsitution
-      if %w(assigned_to_id author_id).include?(field)
-        v.push(User.current.logged? ? User.current.id.to_s : "0") if v.delete("me")
-      end
-      
-      sql = sql + sql_for_field(field, v, db_table, db_field, is_custom_filter)
-      
-      sql << ')'
       filters_clauses << sql
+      
     end if filters and valid?
     
     (filters_clauses << project_statement).join(' AND ')
   end
   
+  # Returns the issue count
+  def issue_count
+    Issue.count(:include => [:status, :project], :conditions => statement)
+  rescue ::ActiveRecord::StatementInvalid => e
+    raise StatementInvalid.new(e.message)
+  end
+  
+  # Returns the issue count by group or nil if query is not grouped
+  def issue_count_by_group
+    r = nil
+    if grouped?
+      begin
+        # Rails will raise an (unexpected) RecordNotFound if there's only a nil group value
+        r = Issue.count(:group => group_by_statement, :include => [:status, :project], :conditions => statement)
+      rescue ActiveRecord::RecordNotFound
+        r = {nil => issue_count}
+      end
+      c = group_by_column
+      if c.is_a?(QueryCustomFieldColumn)
+        r = r.keys.inject({}) {|h, k| h[c.custom_field.cast_value(k)] = r[k]; h}
+      end
+    end
+    r
+  rescue ::ActiveRecord::StatementInvalid => e
+    raise StatementInvalid.new(e.message)
+  end
+  
+  # Returns the issues
+  # Valid options are :order, :offset, :limit, :include, :conditions
+  def issues(options={})
+    order_option = [group_by_sort_order, options[:order]].reject {|s| s.blank?}.join(',')
+    order_option = nil if order_option.blank?
+    
+    Issue.find :all, :include => ([:status, :project] + (options[:include] || [])).uniq,
+                     :conditions => Query.merge_conditions(statement, options[:conditions]),
+                     :order => order_option,
+                     :limit  => options[:limit],
+                     :offset => options[:offset]
+  rescue ::ActiveRecord::StatementInvalid => e
+    raise StatementInvalid.new(e.message)
+  end
+
+  # Returns the journals
+  # Valid options are :order, :offset, :limit
+  def journals(options={})
+    Journal.find :all, :include => [:details, :user, {:issue => [:project, :author, :tracker, :status]}],
+                       :conditions => statement,
+                       :order => options[:order],
+                       :limit => options[:limit],
+                       :offset => options[:offset]
+  rescue ::ActiveRecord::StatementInvalid => e
+    raise StatementInvalid.new(e.message)
+  end
+  
+  # Returns the versions
+  # Valid options are :conditions
+  def versions(options={})
+    Version.find :all, :include => :project,
+                       :conditions => Query.merge_conditions(project_statement, options[:conditions])
+  rescue ::ActiveRecord::StatementInvalid => e
+    raise StatementInvalid.new(e.message)
+  end
+  
   private
   
-  # Helper method to generate the WHERE sql for a +field+ with a +value+
-  def sql_for_field(field, value, db_table, db_field, is_custom_filter)
+  # Helper method to generate the WHERE sql for a +field+, +operator+ and a +value+
+  def sql_for_field(field, operator, value, db_table, db_field, is_custom_filter=false)
     sql = ''
-    case operator_for field
+    case operator
     when "="
       sql = "#{db_table}.#{db_field} IN (" + value.collect{|val| "'#{connection.quote_string(val)}'"}.join(",") + ")"
     when "!"

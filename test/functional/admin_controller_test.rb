@@ -21,7 +21,7 @@ require 'admin_controller'
 # Re-raise errors caught by the controller.
 class AdminController; def rescue_action(e) raise e end; end
 
-class AdminControllerTest < Test::Unit::TestCase
+class AdminControllerTest < ActionController::TestCase
   fixtures :projects, :users, :roles
   
   def setup
@@ -36,6 +36,13 @@ class AdminControllerTest < Test::Unit::TestCase
     get :index
     assert_no_tag :tag => 'div',
                   :attributes => { :class => /nodata/ }
+  end
+  
+  def test_projects_routing
+    assert_routing(
+      {:method => :get, :path => '/admin/projects'},
+      :controller => 'admin', :action => 'projects'
+    )
   end
   
   def test_index_with_no_configuration_data
@@ -72,7 +79,7 @@ class AdminControllerTest < Test::Unit::TestCase
   
   def test_test_email
     get :test_email
-    assert_redirected_to 'settings/edit'
+    assert_redirected_to '/settings/edit?tab=notifications'
     mail = ActionMailer::Base.deliveries.last
     assert_kind_of TMail::Mail, mail
     user = User.find(1)
@@ -111,6 +118,21 @@ class AdminControllerTest < Test::Unit::TestCase
     get :info
     assert_response :success
     assert_template 'info'
+  end
+  
+  def test_admin_menu_plugin_extension
+    Redmine::MenuManager.map :admin_menu do |menu|
+      menu.push :test_admin_menu_plugin_extension, '/foo/bar', :caption => 'Test'
+    end
+    
+    get :index
+    assert_response :success
+    assert_tag :a, :attributes => { :href => '/foo/bar' },
+                   :content => 'Test'
+    
+    Redmine::MenuManager.map :admin_menu do |menu|
+      menu.delete :test_admin_menu_plugin_extension
+    end
   end
   
   private

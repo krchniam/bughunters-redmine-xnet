@@ -1,5 +1,5 @@
-# redMine - project management software
-# Copyright (C) 2006-2007  Jean-Philippe Lang
+# Redmine - project management software
+# Copyright (C) 2006-2009  Jean-Philippe Lang
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -22,12 +22,13 @@ class WikiPage < ActiveRecord::Base
   belongs_to :wiki
   has_one :content, :class_name => 'WikiContent', :foreign_key => 'page_id', :dependent => :destroy
   acts_as_attachable :delete_permission => :delete_wiki_pages_attachments
-  acts_as_tree :order => 'title'
-  
+  acts_as_tree :dependent => :nullify, :order => 'title'
+
+  acts_as_watchable
   acts_as_event :title => Proc.new {|o| "#{l(:label_wiki)}: #{o.title}"},
                 :description => :text,
                 :datetime => :created_on,
-                :url => Proc.new {|o| {:controller => 'wiki', :id => o.wiki.project_id, :page => o.title}}
+                :url => Proc.new {|o| {:controller => 'wiki', :id => o.wiki.project, :page => o.title}}
 
   acts_as_searchable :columns => ['title', 'text'],
                      :include => [{:wiki => :project}, :content],
@@ -39,6 +40,10 @@ class WikiPage < ActiveRecord::Base
   validates_format_of :title, :with => /^[^,\.\/\?\;\|\s]*$/
   validates_uniqueness_of :title, :scope => :wiki_id, :case_sensitive => false
   validates_associated :content
+  
+  def visible?(user=User.current)
+    !user.nil? && user.allowed_to?(:view_wiki_pages, project)
+  end
 
   def title=(value)
     value = Wiki.titleize(value)
@@ -129,9 +134,9 @@ class WikiPage < ActiveRecord::Base
   protected
   
   def validate
-    errors.add(:parent_title, :activerecord_error_invalid) if !@parent_title.blank? && parent.nil?
-    errors.add(:parent_title, :activerecord_error_circular_dependency) if parent && (parent == self || parent.ancestors.include?(self))
-    errors.add(:parent_title, :activerecord_error_not_same_project) if parent && (parent.wiki_id != wiki_id)
+    errors.add(:parent_title, :invalid) if !@parent_title.blank? && parent.nil?
+    errors.add(:parent_title, :circular_dependency) if parent && (parent == self || parent.ancestors.include?(self))
+    errors.add(:parent_title, :not_same_project) if parent && (parent.wiki_id != wiki_id)
   end
 end
 

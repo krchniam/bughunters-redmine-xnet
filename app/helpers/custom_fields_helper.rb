@@ -18,10 +18,15 @@
 module CustomFieldsHelper
 
   def custom_fields_tabs
-    tabs = [{:name => 'IssueCustomField', :label => :label_issue_plural},
-            {:name => 'TimeEntryCustomField', :label => :label_spent_time},
-            {:name => 'ProjectCustomField', :label => :label_project_plural},
-            {:name => 'UserCustomField', :label => :label_user_plural}
+    tabs = [{:name => 'IssueCustomField', :partial => 'custom_fields/index', :label => :label_issue_plural},
+            {:name => 'TimeEntryCustomField', :partial => 'custom_fields/index', :label => :label_spent_time},
+            {:name => 'ProjectCustomField', :partial => 'custom_fields/index', :label => :label_project_plural},
+            {:name => 'VersionCustomField', :partial => 'custom_fields/index', :label => :label_version_plural},
+            {:name => 'UserCustomField', :partial => 'custom_fields/index', :label => :label_user_plural},
+            {:name => 'GroupCustomField', :partial => 'custom_fields/index', :label => :label_group_plural},
+            {:name => 'TimeEntryActivityCustomField', :partial => 'custom_fields/index', :label => TimeEntryActivity::OptionName},
+            {:name => 'IssuePriorityCustomField', :partial => 'custom_fields/index', :label => IssuePriority::OptionName},
+            {:name => 'DocumentCategoryCustomField', :partial => 'custom_fields/index', :label => DocumentCategory::OptionName}
             ]
   end
   
@@ -38,7 +43,7 @@ module CustomFieldsHelper
     when "text"
       text_area_tag(field_name, custom_value.value, :id => field_id, :rows => 3, :style => 'width:90%')
     when "bool"
-      check_box_tag(field_name, '1', custom_value.true?, :id => field_id) + hidden_field_tag(field_name, '0')
+      hidden_field_tag(field_name, '0') + check_box_tag(field_name, '1', custom_value.true?, :id => field_id)
     when "list"
       blank_option = custom_field.is_required? ?
                        (custom_field.default_value.blank? ? "<option value=\"\">--- #{l(:actionview_instancetag_blank_option)} ---</option>" : '') : 
@@ -61,6 +66,26 @@ module CustomFieldsHelper
   def custom_field_tag_with_label(name, custom_value)
     custom_field_label_tag(name, custom_value) + custom_field_tag(name, custom_value)
   end
+  
+  def custom_field_tag_for_bulk_edit(custom_field)
+    field_name = "custom_field_values[#{custom_field.id}]"
+    field_id = "custom_field_values_#{custom_field.id}"
+    case custom_field.field_format
+      when "date"
+        text_field_tag(field_name, '', :id => field_id, :size => 10) + 
+        calendar_for(field_id)
+      when "text"
+        text_area_tag(field_name, '', :id => field_id, :rows => 3, :style => 'width:90%')
+      when "bool"
+        select_tag(field_name, options_for_select([[l(:label_no_change_option), ''],
+                                                   [l(:general_text_yes), '1'],
+                                                   [l(:general_text_no), '0']]), :id => field_id)
+      when "list"
+        select_tag(field_name, options_for_select([[l(:label_no_change_option), '']] + custom_field.possible_values), :id => field_id)
+      else
+        text_field_tag(field_name, '', :id => field_id)
+    end
+  end
 
   # Return a string used to display a custom value
   def show_value(custom_value)
@@ -75,7 +100,7 @@ module CustomFieldsHelper
     when "date"
       begin; format_date(value.to_date); rescue; value end
     when "bool"
-      l_YesNo(value == "1")
+      l(value == "1" ? :general_text_Yes : :general_text_No)
     else
       value
     end

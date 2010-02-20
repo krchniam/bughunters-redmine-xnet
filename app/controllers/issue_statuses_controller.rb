@@ -16,9 +16,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class IssueStatusesController < ApplicationController
+  layout 'admin'
+  
   before_filter :require_admin
 
-  verify :method => :post, :only => [ :destroy, :create, :update, :move ],
+  verify :method => :post, :only => [ :destroy, :create, :update, :move, :update_issue_done_ratio ],
          :redirect_to => { :action => :list }
          
   def index
@@ -58,21 +60,6 @@ class IssueStatusesController < ApplicationController
       render :action => 'edit'
     end
   end
-  
-  def move
-    @issue_status = IssueStatus.find(params[:id])
-    case params[:position]
-    when 'highest'
-      @issue_status.move_to_top
-    when 'higher'
-      @issue_status.move_higher
-    when 'lower'
-      @issue_status.move_lower
-    when 'lowest'
-      @issue_status.move_to_bottom
-    end if params[:position]
-    redirect_to :action => 'list'
-  end
 
   def destroy
     IssueStatus.find(params[:id]).destroy
@@ -81,4 +68,13 @@ class IssueStatusesController < ApplicationController
     flash[:error] = "Unable to delete issue status"
     redirect_to :action => 'list'
   end  	
+  
+  def update_issue_done_ratio
+    if IssueStatus.update_issue_done_ratios
+      flash[:notice] = l(:notice_issue_done_ratios_updated)
+    else
+      flash[:error] =  l(:error_issue_done_ratios_not_updated)
+    end
+    redirect_to :action => 'list'
+  end
 end

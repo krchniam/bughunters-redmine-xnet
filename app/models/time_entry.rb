@@ -21,25 +21,30 @@ class TimeEntry < ActiveRecord::Base
   belongs_to :project
   belongs_to :issue
   belongs_to :user
-  belongs_to :activity, :class_name => 'Enumeration', :foreign_key => :activity_id
+  belongs_to :activity, :class_name => 'TimeEntryActivity', :foreign_key => 'activity_id'
   
   attr_protected :project_id, :user_id, :tyear, :tmonth, :tweek
 
   acts_as_customizable
-  acts_as_event :title => Proc.new {|o| "#{o.user}: #{lwr(:label_f_hour, o.hours)} (#{(o.issue || o.project).event_title})"},
-                :url => Proc.new {|o| {:controller => 'timelog', :action => 'details', :project_id => o.project}},
+  acts_as_event :title => Proc.new {|o| "#{l_hours(o.hours)} (#{(o.issue || o.project).event_title})"},
+                :url => Proc.new {|o| {:controller => 'timelog', :action => 'details', :project_id => o.project, :issue_id => o.issue}},
                 :author => :user,
                 :description => :comments
-  
+
+  acts_as_activity_provider :timestamp => "#{table_name}.created_on",
+                            :author_key => :user_id,
+                            :find_options => {:include => :project} 
+
   validates_presence_of :user_id, :activity_id, :project_id, :hours, :spent_on
-  validates_numericality_of :hours, :allow_nil => true, :message => :activerecord_error_invalid
+  validates_numericality_of :hours, :allow_nil => true, :message => :invalid
   validates_length_of :comments, :maximum => 255, :allow_nil => true
 
   def after_initialize
     if new_record? && self.activity.nil?
-      if default_activity = Enumeration.default('ACTI')
+      if default_activity = TimeEntryActivity.default
         self.activity_id = default_activity.id
       end
+      self.hours = nil if hours == 0
     end
   end
   
@@ -48,9 +53,9 @@ class TimeEntry < ActiveRecord::Base
   end
   
   def validate
-    errors.add :hours, :activerecord_error_invalid if hours && (hours < 0 || hours >= 1000)
-    errors.add :project_id, :activerecord_error_invalid if project.nil?
-    errors.add :issue_id, :activerecord_error_invalid if (issue_id && !issue) || (issue && project!=issue.project)
+    errors.add :hours, :invalid if hours && (hours < 0 || hours >= 1000)
+    errors.add :project_id, :invalid if project.nil?
+    errors.add :issue_id, :invalid if (issue_id && !issue) || (issue && project!=issue.project)
   end
   
   def hours=(h)

@@ -22,8 +22,9 @@ require 'attachments_controller'
 class AttachmentsController; def rescue_action(e) raise e end; end
 
 
-class AttachmentsControllerTest < Test::Unit::TestCase
-  fixtures :users, :projects, :roles, :members, :enabled_modules, :issues, :attachments
+class AttachmentsControllerTest < ActionController::TestCase
+  fixtures :users, :projects, :roles, :members, :member_roles, :enabled_modules, :issues, :trackers, :attachments,
+           :versions, :wiki_pages, :wikis, :documents
   
   def setup
     @controller = AttachmentsController.new
@@ -52,12 +53,23 @@ class AttachmentsControllerTest < Test::Unit::TestCase
     get :show, :id => 5
     assert_response :success
     assert_template 'diff'
+    assert_equal 'text/html', @response.content_type
   end
   
   def test_show_text_file
     get :show, :id => 4
     assert_response :success
     assert_template 'file'
+    assert_equal 'text/html', @response.content_type
+  end
+  
+  def test_show_text_file_should_send_if_too_big
+    Setting.file_max_size_displayed = 512
+    Attachment.find(4).update_attribute :filesize, 754.kilobyte
+    
+    get :show, :id => 4
+    assert_response :success
+    assert_equal 'application/x-ruby', @response.content_type
   end
   
   def test_show_other
@@ -72,9 +84,22 @@ class AttachmentsControllerTest < Test::Unit::TestCase
     assert_equal 'application/x-ruby', @response.content_type
   end
   
+  def test_download_should_assign_content_type_if_blank
+    Attachment.find(4).update_attribute(:content_type, '')
+    
+    get :download, :id => 4
+    assert_response :success
+    assert_equal 'text/x-ruby', @response.content_type
+  end
+  
+  def test_download_missing_file
+    get :download, :id => 2
+    assert_response 404
+  end
+  
   def test_anonymous_on_private_private
     get :download, :id => 7
-    assert_redirected_to 'account/login'
+    assert_redirected_to '/login?back_url=http%3A%2F%2Ftest.host%2Fattachments%2Fdownload%2F7'
   end
   
   def test_destroy_issue_attachment
@@ -85,7 +110,7 @@ class AttachmentsControllerTest < Test::Unit::TestCase
       post :destroy, :id => 1
     end
     # no referrer
-    assert_redirected_to 'projects/show/ecookbook'
+    assert_redirected_to 'projects/ecookbook'
     assert_nil Attachment.find_by_id(1)
     j = issue.journals.find(:first, :order => 'created_on DESC')
     assert_equal 'attachment', j.details.first.property
@@ -119,7 +144,7 @@ class AttachmentsControllerTest < Test::Unit::TestCase
   
   def test_destroy_without_permission
     post :destroy, :id => 3
-    assert_redirected_to '/login'
+    assert_redirected_to '/login?back_url=http%3A%2F%2Ftest.host%2Fattachments%2Fdestroy%2F3'
     assert Attachment.find_by_id(3)
   end
 end

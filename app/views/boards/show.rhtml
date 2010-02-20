@@ -4,11 +4,12 @@
 <%= link_to_if_authorized l(:label_message_new),
                           {:controller => 'messages', :action => 'new', :board_id => @board},
                           :class => 'icon icon-add',
-                          :onclick => 'Element.show("add-message"); return false;' %>
+                          :onclick => 'Element.show("add-message"); Form.Element.focus("message_subject"); return false;' %>
 <%= watcher_tag(@board, User.current) %>
 </div>
 
 <div id="add-message" style="display:none;">
+<% if authorize_for('messages', 'new') %>
 <h2><%= link_to h(@board.name), :controller => 'boards', :action => 'show', :project_id => @project, :id => @board %> &#187; <%= l(:label_message_new) %></h2>
 <% form_for :message, @message, :url => {:controller => 'messages', :action => 'new', :board_id => @board}, :html => {:multipart => true, :id => 'message-form'} do |f| %>
   <%= render :partial => 'messages/form', :locals => {:f => f} %>
@@ -23,6 +24,7 @@
   <%= link_to l(:button_cancel), "#", :onclick => 'Element.hide("add-message")' %></p>
 <% end %>
 <div id="preview" class="wiki"></div>
+<% end %>
 </div>
 
 <h2><%=h @board.name %></h2>
@@ -59,4 +61,12 @@
 <p class="nodata"><%= l(:label_no_data) %></p>
 <% end %>
 
+<% other_formats_links do |f| %>
+	<%= f.link_to 'Atom', :url => {:key => User.current.rss_key} %>
+<% end %>
+
 <% html_title h(@board.name) %>
+
+<% content_for :header_tags do %>
+    <%= auto_discovery_link_tag(:atom, {:format => 'atom', :key => User.current.rss_key}, :title => "#{@project}: #{@board}") %>
+<% end %>

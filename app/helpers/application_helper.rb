@@ -22,14 +22,11 @@ require 'cgi'
 
 module ApplicationHelper
   include Redmine::WikiFormatting::Macros::Definitions
+  include Redmine::I18n
   include GravatarHelper::PublicMethods
 
   extend Forwardable
   def_delegators :wiki_helper, :wikitoolbar_for, :heads_for_wiki_formatter
-
-  def current_role
-    @current_role ||= User.current.role_for_project(@project)
-  end
 
   # Return true if user is authorized for controller/action, otherwise false
   def authorize_for(controller, action)
@@ -47,16 +44,45 @@ module ApplicationHelper
     link_to_remote(name, options, html_options) if authorize_for(url[:controller] || params[:controller], url[:action])
   end
 
-  # Display a link to user's account page
+  # Displays a link to user's account page if active
   def link_to_user(user, options={})
-    (user && !user.anonymous?) ? link_to(user.name(options[:format]), :controller => 'account', :action => 'show', :id => user) : 'Anonymous'
+    if user.is_a?(User)
+      name = h(user.name(options[:format]))
+      if user.active?
+        link_to name, :controller => 'users', :action => 'show', :id => user
+      else
+        name
+      end
+    else
+      h(user.to_s)
+    end
   end
 
+  # Displays a link to +issue+ with its subject.
+  # Examples:
+  # 
+  #   link_to_issue(issue)                        # => Defect #6: This is the subject
+  #   link_to_issue(issue, :truncate => 6)        # => Defect #6: This i...
+  #   link_to_issue(issue, :subject => false)     # => Defect #6
+  #   link_to_issue(issue, :project => true)      # => Foo - Defect #6
+  #
   def link_to_issue(issue, options={})
-    options[:class] ||= ''
-    options[:class] << ' issue'
-    options[:class] << ' closed' if issue.closed?
-    link_to "#{issue.tracker.name} ##{issue.id}", {:controller => "issues", :action => "show", :id => issue}, options
+    title = nil
+    subject = nil
+    if options[:subject] == false
+      title = truncate(issue.subject, :length => 60)
+    else
+      subject = issue.subject
+      if options[:truncate]
+        subject = truncate(subject, :length => options[:truncate])
+      end
+    end
+    s = link_to "#{issue.tracker} ##{issue.id}", {:controller => "issues", :action => "show", :id => issue}, 
+                                                 :class => issue.css_classes,
+                                                 :title => title
+    s << ": #{h subject}" if subject
+    s = "#{h issue.project} - " + s if options[:project]
+    s
   end
 
   # Generates a link to an attachment.
@@ -68,6 +94,15 @@ module ApplicationHelper
     action = options.delete(:download) ? 'download' : 'show'
 
     link_to(h(text), {:controller => 'attachments', :action => action, :id => attachment, :filename => attachment.filename }, options)
+  end
+
+  # Generates a link to a SCM revision
+  # Options:
+  # * :text - Link text (default to the formatted revision)
+  def link_to_revision(revision, project, options={})
+    text = options.delete(:text) || format_revision(revision)
+
+    link_to(text, {:controller => 'repositories', :action => 'revision', :id => project, :rev => revision}, :title => l(:label_revision_id, revision))
   end
 
   def toggle_link(name, id, options={})
@@ -89,26 +124,9 @@ module ApplicationHelper
     html_options[:onclick] = "promptToRemote('#{text}', '#{param}', '#{url_for(url)}'); return false;"
     link_to name, {}, html_options
   end
-
-  def format_date(date)
-    return nil unless date
-    # "Setting.date_format.size < 2" is a temporary fix (content of date_format setting changed)
-    @date_format ||= (Setting.date_format.blank? || Setting.date_format.size < 2 ? l(:general_fmt_date) : Setting.date_format)
-    date.strftime(@date_format)
-  end
-
-  def format_time(time, include_date = true)
-    return nil unless time
-    time = time.to_time if time.is_a?(String)
-    zone = User.current.time_zone
-    local = zone ? time.in_time_zone(zone) : (time.utc? ? time.localtime : time)
-    @date_format ||= (Setting.date_format.blank? || Setting.date_format.size < 2 ? l(:general_fmt_date) : Setting.date_format)
-    @time_format ||= (Setting.time_format.blank? ? l(:general_fmt_time) : Setting.time_format)
-    include_date ? local.strftime("#{@date_format} #{@time_format}") : local.strftime(@time_format)
-  end
   
   def format_activity_title(text)
-    h(truncate_single_line(text, 100))
+    h(truncate_single_line(text, :length => 100))
   end
   
   def format_activity_day(date)
@@ -116,16 +134,17 @@ module ApplicationHelper
   end
   
   def format_activity_description(text)
-    h(truncate(text.to_s, 250).gsub(%r{<(pre|code)>.*$}m, '...'))
+    h(truncate(text.to_s, :length => 120).gsub(%r{[\r\n]*<(pre|code)>.*$}m, '...')).gsub(/[\r\n]+/, "<br />")
   end
 
-  def distance_of_date_in_words(from_date, to_date = 0)
-    from_date = from_date.to_date if from_date.respond_to?(:to_date)
-    to_date = to_date.to_date if to_date.respond_to?(:to_date)
-    distance_in_days = (to_date - from_date).abs
-    lwr(:actionview_datehelper_time_in_words_day, distance_in_days)
+  def format_version_name(version)
+    if version.project == @project
+    	h(version)
+    else
+      h("#{version.project} - #{version}")
+    end
   end
-
+  
   def due_date_distance_in_words(date)
     if date
       l((date < Date.today ? :label_roadmap_overdue : :label_roadmap_due_in), distance_of_date_in_words(Date.today, date))
@@ -156,6 +175,86 @@ module ApplicationHelper
     end
     s
   end
+  
+  # Renders tabs and their content
+  def render_tabs(tabs)
+    if tabs.any?
+      render :partial => 'common/tabs', :locals => {:tabs => tabs}
+    else
+      content_tag 'p', l(:label_no_data), :class => "nodata"
+    end
+  end
+  
+  # Renders the project quick-jump box
+  def render_project_jump_box
+    # Retrieve them now to avoid a COUNT query
+    projects = User.current.projects.all
+    if projects.any?
+      s = '<select onchange="if (this.value != \'\') { window.location = this.value; }">' +
+            "<option value=''>#{ l(:label_jump_to_a_project) }</option>" +
+            '<option value="" disabled="disabled">---</option>'
+      s << project_tree_options_for_select(projects, :selected => @project) do |p|
+        { :value => url_for(:controller => 'projects', :action => 'show', :id => p, :jump => current_menu_item) }
+      end
+      s << '</select>'
+      s
+    end
+  end
+  
+  def project_tree_options_for_select(projects, options = {})
+    s = ''
+    project_tree(projects) do |project, level|
+      name_prefix = (level > 0 ? ('&nbsp;' * 2 * level + '&#187; ') : '')
+      tag_options = {:value => project.id, :selected => ((project == options[:selected]) ? 'selected' : nil)}
+      tag_options.merge!(yield(project)) if block_given?
+      s << content_tag('option', name_prefix + h(project), tag_options)
+    end
+    s
+  end
+  
+  # Yields the given block for each project with its level in the tree
+  def project_tree(projects, &block)
+    ancestors = []
+    projects.sort_by(&:lft).each do |project|
+      while (ancestors.any? && !project.is_descendant_of?(ancestors.last)) 
+        ancestors.pop
+      end
+      yield project, ancestors.size
+      ancestors << project
+    end
+  end
+  
+  def project_nested_ul(projects, &block)
+    s = ''
+    if projects.any?
+      ancestors = []
+      projects.sort_by(&:lft).each do |project|
+        if (ancestors.empty? || project.is_descendant_of?(ancestors.last))
+          s << "<ul>\n"
+        else
+          ancestors.pop
+          s << "</li>"
+          while (ancestors.any? && !project.is_descendant_of?(ancestors.last)) 
+            ancestors.pop
+            s << "</ul></li>\n"
+          end
+        end
+        s << "<li>"
+        s << yield(project).to_s
+        ancestors << project
+      end
+      s << ("</li></ul>\n" * ancestors.size)
+    end
+    s
+  end
+  
+  def principals_check_box_tags(name, principals)
+    s = ''
+    principals.sort.each do |principal|
+      s << "<label>#{ check_box_tag name, principal.id, false } #{h principal}</label>\n"
+    end
+    s 
+  end
 
   # Truncates and returns the string as a single line
   def truncate_single_line(string, *args)
@@ -167,25 +266,16 @@ module ApplicationHelper
   end
 
   def authoring(created, author, options={})
-    time_tag = @project.nil? ? content_tag('acronym', distance_of_time_in_words(Time.now, created), :title => format_time(created)) :
-                               link_to(distance_of_time_in_words(Time.now, created), 
-                                       {:controller => 'projects', :action => 'activity', :id => @project, :from => created.to_date},
-                                       :title => format_time(created))
-    author_tag = (author.is_a?(User) && !author.anonymous?) ? link_to(h(author), :controller => 'account', :action => 'show', :id => author) : h(author || 'Anonymous')
-    l(options[:label] || :label_added_time_by, author_tag, time_tag)
+    l(options[:label] || :label_added_time_by, :author => link_to_user(author), :age => time_tag(created))
   end
-
-  def l_or_humanize(s, options={})
-    k = "#{options[:prefix]}#{s}".to_sym
-    l_has_string?(k) ? l(k) : s.to_s.humanize
-  end
-
-  def day_name(day)
-    l(:general_day_names).split(',')[day-1]
-  end
-
-  def month_name(month)
-    l(:actionview_datehelper_select_month_names).split(',')[month-1]
+  
+  def time_tag(time)
+    text = distance_of_time_in_words(Time.now, time)
+    if @project
+      link_to(text, {:controller => 'projects', :action => 'activity', :id => @project, :from => time.to_date}, :title => format_time(time))
+    else
+      content_tag('acronym', text, :title => format_time(time))
+    end
   end
 
   def syntax_highlight(name, content)
@@ -200,51 +290,81 @@ module ApplicationHelper
   def pagination_links_full(paginator, count=nil, options={})
     page_param = options.delete(:page_param) || :page
     url_param = params.dup
-    # don't reuse params if filters are present
-    url_param.clear if url_param.has_key?(:set_filter)
+    # don't reuse query params if filters are present
+    url_param.merge!(:fields => nil, :values => nil, :operators => nil) if url_param.delete(:set_filter)
 
     html = ''
-    html << link_to_remote(('&#171; ' + l(:label_previous)),
-                            {:update => 'content',
-                             :url => url_param.merge(page_param => paginator.current.previous),
-                             :complete => 'window.scrollTo(0,0)'},
-                            {:href => url_for(:params => url_param.merge(page_param => paginator.current.previous))}) + ' ' if paginator.current.previous
+    if paginator.current.previous
+      html << link_to_remote_content_update('&#171; ' + l(:label_previous), url_param.merge(page_param => paginator.current.previous)) + ' '
+    end
 
     html << (pagination_links_each(paginator, options) do |n|
-      link_to_remote(n.to_s,
-                      {:url => {:params => url_param.merge(page_param => n)},
-                       :update => 'content',
-                       :complete => 'window.scrollTo(0,0)'},
-                      {:href => url_for(:params => url_param.merge(page_param => n))})
+      link_to_remote_content_update(n.to_s, url_param.merge(page_param => n))
     end || '')
-
-    html << ' ' + link_to_remote((l(:label_next) + ' &#187;'),
-                                 {:update => 'content',
-                                  :url => url_param.merge(page_param => paginator.current.next),
-                                  :complete => 'window.scrollTo(0,0)'},
-                                 {:href => url_for(:params => url_param.merge(page_param => paginator.current.next))}) if paginator.current.next
+    
+    if paginator.current.next
+      html << ' ' + link_to_remote_content_update((l(:label_next) + ' &#187;'), url_param.merge(page_param => paginator.current.next))
+    end
 
     unless count.nil?
-      html << [" (#{paginator.current.first_item}-#{paginator.current.last_item}/#{count})", per_page_links(paginator.items_per_page)].compact.join(' | ')
+      html << [
+        " (#{paginator.current.first_item}-#{paginator.current.last_item}/#{count})",
+        per_page_links(paginator.items_per_page)
+      ].compact.join(' | ')
     end
 
     html
   end
-
+  
   def per_page_links(selected=nil)
     url_param = params.dup
     url_param.clear if url_param.has_key?(:set_filter)
 
     links = Setting.per_page_options_array.collect do |n|
-      n == selected ? n : link_to_remote(n, {:update => "content", :url => params.dup.merge(:per_page => n)},
+      n == selected ? n : link_to_remote(n, {:update => "content",
+                                             :url => params.dup.merge(:per_page => n),
+                                             :method => :get},
                                             {:href => url_for(url_param.merge(:per_page => n))})
     end
     links.size > 1 ? l(:label_display_per_page, links.join(', ')) : nil
+  end
+  
+  def reorder_links(name, url)
+    link_to(image_tag('2uparrow.png',   :alt => l(:label_sort_highest)), url.merge({"#{name}[move_to]" => 'highest'}), :method => :post, :title => l(:label_sort_highest)) +
+    link_to(image_tag('1uparrow.png',   :alt => l(:label_sort_higher)),  url.merge({"#{name}[move_to]" => 'higher'}),  :method => :post, :title => l(:label_sort_higher)) +
+    link_to(image_tag('1downarrow.png', :alt => l(:label_sort_lower)),   url.merge({"#{name}[move_to]" => 'lower'}),   :method => :post, :title => l(:label_sort_lower)) +
+    link_to(image_tag('2downarrow.png', :alt => l(:label_sort_lowest)),  url.merge({"#{name}[move_to]" => 'lowest'}),  :method => :post, :title => l(:label_sort_lowest))
   end
 
   def breadcrumb(*args)
     elements = args.flatten
     elements.any? ? content_tag('p', args.join(' &#187; ') + ' &#187; ', :class => 'breadcrumb') : nil
+  end
+  
+  def other_formats_links(&block)
+    concat('<p class="other-formats">' + l(:label_export_to))
+    yield Redmine::Views::OtherFormatsBuilder.new(self)
+    concat('</p>')
+  end
+  
+  def page_header_title
+    if @project.nil? || @project.new_record?
+      h(Setting.app_title)
+    else
+      b = []
+      ancestors = (@project.root? ? [] : @project.ancestors.visible)
+      if ancestors.any?
+        root = ancestors.shift
+        b << link_to(h(root), {:controller => 'projects', :action => 'show', :id => root, :jump => current_menu_item}, :class => 'root')
+        if ancestors.size > 2
+          b << '&#8230;'
+          ancestors = ancestors[-2, 2]
+        end
+        b += ancestors.collect {|p| link_to(h(p), {:controller => 'projects', :action => 'show', :id => p, :jump => current_menu_item}, :class => 'ancestor') }
+      end
+      b << h(@project)
+      b.join(' &#187; ')
+    end
   end
 
   def html_title(*args)
@@ -253,7 +373,7 @@ module ApplicationHelper
       title << @project.name if @project
       title += @html_title if @html_title
       title << Setting.app_title
-      title.compact.join(' - ')
+      title.select {|t| !t.blank? }.join(' - ')
     else
       @html_title ||= []
       @html_title += args
@@ -352,7 +472,7 @@ module ApplicationHelper
                                    :class => ('wiki-page' + (wiki_page ? '' : ' new')))
         else
           # project or wiki doesn't exist
-          title || page
+          all
         end
       else
         all
@@ -393,17 +513,16 @@ module ApplicationHelper
           if project && (changeset = project.changesets.find_by_revision(oid))
             link = link_to("r#{oid}", {:only_path => only_path, :controller => 'repositories', :action => 'revision', :id => project, :rev => oid},
                                       :class => 'changeset',
-                                      :title => truncate_single_line(changeset.comments, 100))
+                                      :title => truncate_single_line(changeset.comments, :length => 100))
           end
         elsif sep == '#'
           oid = oid.to_i
           case prefix
           when nil
-            if issue = Issue.find_by_id(oid, :include => [:project, :status], :conditions => Project.visible_by(User.current))
+            if issue = Issue.visible.find_by_id(oid, :include => :status)
               link = link_to("##{oid}", {:only_path => only_path, :controller => 'issues', :action => 'show', :id => oid},
-                                        :class => (issue.closed? ? 'issue closed' : 'issue'),
-                                        :title => "#{truncate(issue.subject, 100)} (#{issue.status.name})")
-              link = content_tag('del', link) if issue.closed?
+                                        :class => issue.css_classes,
+                                        :title => "#{truncate(issue.subject, :length => 100)} (#{issue.status.name})")
             end
           when 'document'
             if document = Document.find_by_id(oid, :include => [:project], :conditions => Project.visible_by(User.current))
@@ -417,7 +536,7 @@ module ApplicationHelper
             end
           when 'message'
             if message = Message.find_by_id(oid, :include => [:parent, {:board => :project}], :conditions => Project.visible_by(User.current))
-              link = link_to h(truncate(message.subject, 60)), {:only_path => only_path,
+              link = link_to h(truncate(message.subject, :length => 60)), {:only_path => only_path,
                                                                 :controller => 'messages',
                                                                 :action => 'show',
                                                                 :board_id => message.board,
@@ -444,7 +563,7 @@ module ApplicationHelper
             if project && (changeset = project.changesets.find(:first, :conditions => ["scmid LIKE ?", "#{name}%"]))
               link = link_to h("#{name}"), {:only_path => only_path, :controller => 'repositories', :action => 'revision', :id => project, :rev => changeset.revision},
                                            :class => 'changeset',
-                                           :title => truncate_single_line(changeset.comments, 100)
+                                           :title => truncate_single_line(changeset.comments, :length => 100)
             end
           when 'source', 'export'
             if project && project.repository
@@ -479,46 +598,9 @@ module ApplicationHelper
       gsub(/([^\n]\n)(?=[^\n])/, '\1<br />')  # 1 newline   -> br
   end
 
-  def error_messages_for(object_name, options = {})
-    options = options.symbolize_keys
-    object = instance_variable_get("@#{object_name}")
-    if object && !object.errors.empty?
-      # build full_messages here with controller current language
-      full_messages = []
-      object.errors.each do |attr, msg|
-        next if msg.nil?
-        msg = [msg] unless msg.is_a?(Array)
-        if attr == "base"
-          full_messages << l(*msg)
-        else
-          full_messages << "&#171; " + (l_has_string?("field_" + attr) ? l("field_" + attr) : object.class.human_attribute_name(attr)) + " &#187; " + l(*msg) unless attr == "custom_values"
-        end
-      end
-      # retrieve custom values error messages
-      if object.errors[:custom_values]
-        object.custom_values.each do |v|
-          v.errors.each do |attr, msg|
-            next if msg.nil?
-            msg = [msg] unless msg.is_a?(Array)
-            full_messages << "&#171; " + v.custom_field.name + " &#187; " + l(*msg)
-          end
-        end
-      end
-      content_tag("div",
-        content_tag(
-          options[:header_tag] || "span", lwr(:gui_validation_error, full_messages.length) + ":"
-        ) +
-        content_tag("ul", full_messages.collect { |msg| content_tag("li", msg) }),
-        "id" => options[:id] || "errorExplanation", "class" => options[:class] || "errorExplanation"
-      )
-    else
-      ""
-    end
-  end
-
   def lang_options_for_select(blank=true)
     (blank ? [["(auto)", ""]] : []) +
-      GLoc.valid_languages.collect{|lang| [ ll(lang.to_s, :general_lang_name), lang.to_s]}.sort{|x,y| x.last <=> y.last }
+      valid_languages.collect{|lang| [ ll(lang.to_s, :general_lang_name), lang.to_s]}.sort{|x,y| x.last <=> y.last }
   end
 
   def label_tag_for(name, option_tags = nil, options = {})
@@ -546,15 +628,16 @@ module ApplicationHelper
 
   def progress_bar(pcts, options={})
     pcts = [pcts, pcts] unless pcts.is_a?(Array)
+    pcts = pcts.collect(&:round)
     pcts[1] = pcts[1] - pcts[0]
     pcts << (100 - pcts[1] - pcts[0])
     width = options[:width] || '100px;'
     legend = options[:legend] || ''
     content_tag('table',
       content_tag('tr',
-        (pcts[0] > 0 ? content_tag('td', '', :style => "width: #{pcts[0].floor}%;", :class => 'closed') : '') +
-        (pcts[1] > 0 ? content_tag('td', '', :style => "width: #{pcts[1].floor}%;", :class => 'done') : '') +
-        (pcts[2] > 0 ? content_tag('td', '', :style => "width: #{pcts[2].floor}%;", :class => 'todo') : '')
+        (pcts[0] > 0 ? content_tag('td', '', :style => "width: #{pcts[0]}%;", :class => 'closed') : '') +
+        (pcts[1] > 0 ? content_tag('td', '', :style => "width: #{pcts[1]}%;", :class => 'done') : '') +
+        (pcts[2] > 0 ? content_tag('td', '', :style => "width: #{pcts[2]}%;", :class => 'todo') : '')
       ), :class => 'progress', :style => "width: #{width};") +
       content_tag('p', legend, :class => 'pourcent')
   end
@@ -585,8 +668,18 @@ module ApplicationHelper
     unless @calendar_headers_tags_included
       @calendar_headers_tags_included = true
       content_for :header_tags do
+        start_of_week = case Setting.start_of_week.to_i
+        when 1
+          'Calendar._FD = 1;' # Monday
+        when 7
+          'Calendar._FD = 0;' # Sunday
+        else
+          '' # use language
+        end
+        
         javascript_include_tag('calendar/calendar') +
-        javascript_include_tag("calendar/lang/calendar-#{current_language}.js") +
+        javascript_include_tag("calendar/lang/calendar-#{current_language.to_s.downcase}.js") +
+        javascript_tag(start_of_week) +  
         javascript_include_tag('calendar/calendar-setup') +
         stylesheet_link_tag('calendar')
       end
@@ -607,6 +700,7 @@ module ApplicationHelper
   # +user+ can be a User or a string that will be scanned for an email address (eg. 'joe <joe@foo.bar>')
   def avatar(user, options = { })
     if Setting.gravatar_enabled?
+      options.merge!({:ssl => Setting.protocol == 'https', :default => Setting.gravatar_default})
       email = nil
       if user.respond_to?(:mail)
         email = user.mail
@@ -624,4 +718,12 @@ module ApplicationHelper
     extend helper
     return self
   end
+  
+  def link_to_remote_content_update(text, url_params)
+    link_to_remote(text,
+      {:url => url_params, :method => :get, :update => 'content', :complete => 'window.scrollTo(0,0)'},
+      {:href => url_for(:params => url_params)}
+    )
+  end
+  
 end

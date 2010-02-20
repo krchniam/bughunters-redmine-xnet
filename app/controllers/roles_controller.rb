@@ -16,6 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class RolesController < ApplicationController
+  layout 'admin'
+  
   before_filter :require_admin
 
   verify :method => :post, :only => [ :destroy, :move ],
@@ -40,7 +42,7 @@ class RolesController < ApplicationController
         @role.workflows.copy(copy_from)
       end
       flash[:notice] = l(:notice_successful_create)
-      redirect_to :action => 'list'
+      redirect_to :action => 'index'
     end
     @permissions = @role.setable_permissions
     @roles = Role.find :all, :order => 'builtin, position'
@@ -50,7 +52,7 @@ class RolesController < ApplicationController
     @role = Role.find(params[:id])
     if request.post? and @role.update_attributes(params[:role])
       flash[:notice] = l(:notice_successful_update)
-      redirect_to :action => 'list'
+      redirect_to :action => 'index'
     end
     @permissions = @role.setable_permissions
   end
@@ -58,25 +60,10 @@ class RolesController < ApplicationController
   def destroy
     @role = Role.find(params[:id])
     @role.destroy
-    redirect_to :action => 'list'
+    redirect_to :action => 'index'
   rescue
     flash[:error] = 'This role is in use and can not be deleted.'
     redirect_to :action => 'index'
-  end
-  
-  def move
-    @role = Role.find(params[:id])
-    case params[:position]
-    when 'highest'
-      @role.move_to_top
-    when 'higher'
-      @role.move_higher
-    when 'lower'
-      @role.move_lower
-    when 'lowest'
-      @role.move_to_bottom
-    end if params[:position]
-    redirect_to :action => 'list'
   end
   
   def report    
@@ -88,7 +75,7 @@ class RolesController < ApplicationController
         role.save
       end
       flash[:notice] = l(:notice_successful_update)
-      redirect_to :action => 'list'
+      redirect_to :action => 'index'
     end
   end
 end

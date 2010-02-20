@@ -21,8 +21,8 @@ require 'repositories_controller'
 # Re-raise errors caught by the controller.
 class RepositoriesController; def rescue_action(e) raise e end; end
 
-class RepositoriesSubversionControllerTest < Test::Unit::TestCase
-  fixtures :projects, :users, :roles, :members, :enabled_modules,
+class RepositoriesSubversionControllerTest < ActionController::TestCase
+  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules,
            :repositories, :issues, :issue_statuses, :changesets, :changes,
            :issue_categories, :enumerations, :custom_fields, :custom_values, :trackers
 
@@ -47,50 +47,78 @@ class RepositoriesSubversionControllerTest < Test::Unit::TestCase
     end
     
     def test_browse_root
-      get :browse, :id => 1
+      get :show, :id => 1
       assert_response :success
-      assert_template 'browse'
+      assert_template 'show'
       assert_not_nil assigns(:entries)
       entry = assigns(:entries).detect {|e| e.name == 'subversion_test'}
       assert_equal 'dir', entry.kind
     end
     
     def test_browse_directory
-      get :browse, :id => 1, :path => ['subversion_test']
+      get :show, :id => 1, :path => ['subversion_test']
       assert_response :success
-      assert_template 'browse'
+      assert_template 'show'
       assert_not_nil assigns(:entries)
       assert_equal ['folder', '.project', 'helloworld.c', 'textfile.txt'], assigns(:entries).collect(&:name)
       entry = assigns(:entries).detect {|e| e.name == 'helloworld.c'}
       assert_equal 'file', entry.kind
       assert_equal 'subversion_test/helloworld.c', entry.path
+      assert_tag :a, :content => 'helloworld.c', :attributes => { :class => /text\-x\-c/ }
     end
 
     def test_browse_at_given_revision
-      get :browse, :id => 1, :path => ['subversion_test'], :rev => 4
+      get :show, :id => 1, :path => ['subversion_test'], :rev => 4
       assert_response :success
-      assert_template 'browse'
+      assert_template 'show'
       assert_not_nil assigns(:entries)
       assert_equal ['folder', '.project', 'helloworld.c', 'helloworld.rb', 'textfile.txt'], assigns(:entries).collect(&:name)
     end
     
-    def test_changes
+    def test_file_changes
       get :changes, :id => 1, :path => ['subversion_test', 'folder', 'helloworld.rb' ]
       assert_response :success
       assert_template 'changes'
-      # svn properties
-      assert_not_nil assigns(:properties)
-      assert_equal 'native', assigns(:properties)['svn:eol-style']
-      assert_tag :ul,
-                 :child => { :tag => 'li',
-                             :child => { :tag => 'b', :content => 'svn:eol-style' },
-                             :child => { :tag => 'span', :content => 'native' } }
+      
+      changesets = assigns(:changesets)
+      assert_not_nil changesets
+      assert_equal %w(6 3 2), changesets.collect(&:revision)
+      
+      # svn properties displayed with svn >= 1.5 only
+      if Redmine::Scm::Adapters::SubversionAdapter.client_version_above?([1, 5, 0])
+        assert_not_nil assigns(:properties)
+        assert_equal 'native', assigns(:properties)['svn:eol-style']
+        assert_tag :ul,
+                   :child => { :tag => 'li',
+                               :child => { :tag => 'b', :content => 'svn:eol-style' },
+                               :child => { :tag => 'span', :content => 'native' } }
+      end
+    end
+
+    def test_directory_changes
+      get :changes, :id => 1, :path => ['subversion_test', 'folder' ]
+      assert_response :success
+      assert_template 'changes'
+      
+      changesets = assigns(:changesets)
+      assert_not_nil changesets
+      assert_equal %w(10 9 7 6 5 2), changesets.collect(&:revision)
     end
       
     def test_entry
       get :entry, :id => 1, :path => ['subversion_test', 'helloworld.c']
       assert_response :success
       assert_template 'entry'
+    end
+      
+    def test_entry_should_send_if_too_big
+      # no files in the test repo is larger than 1KB...
+      with_settings :file_max_size_displayed => 0 do
+        get :entry, :id => 1, :path => ['subversion_test', 'helloworld.c']
+        assert_response :success
+        assert_template ''
+        assert_equal 'attachment; filename="helloworld.c"', @response.headers['Content-Disposition']
+      end
     end
     
     def test_entry_at_given_revision
@@ -111,12 +139,14 @@ class RepositoriesSubversionControllerTest < Test::Unit::TestCase
     def test_entry_download
       get :entry, :id => 1, :path => ['subversion_test', 'helloworld.c'], :format => 'raw'
       assert_response :success
+      assert_template ''
+      assert_equal 'attachment; filename="helloworld.c"', @response.headers['Content-Disposition']
     end
     
     def test_directory_entry
       get :entry, :id => 1, :path => ['subversion_test', 'folder']
       assert_response :success
-      assert_template 'browse'
+      assert_template 'show'
       assert_not_nil assigns(:entry)
       assert_equal 'folder', assigns(:entry).name
     end
@@ -129,11 +159,11 @@ class RepositoriesSubversionControllerTest < Test::Unit::TestCase
                  :child => { :tag => 'li',
                              # link to the entry at rev 2
                              :child => { :tag => 'a', 
-                                         :attributes => {:href => '/repositories/entry/ecookbook/test/some/path/in/the/repo?rev=2'},
+                                         :attributes => {:href => '/projects/ecookbook/repository/revisions/2/entry/test/some/path/in/the/repo'},
                                          :content => 'repo',
                                          # link to partial diff
                                          :sibling =>  { :tag => 'a', 
-                                                        :attributes => { :href => '/repositories/diff/ecookbook/test/some/path/in/the/repo?rev=2' } 
+                                                        :attributes => { :href => '/projects/ecookbook/repository/revisions/2/diff/test/some/path/in/the/repo' } 
                                                        }
                                         }
                             }
@@ -151,20 +181,31 @@ class RepositoriesSubversionControllerTest < Test::Unit::TestCase
                  :child => { :tag => 'li',
                              # link to the entry at rev 2
                              :child => { :tag => 'a', 
-                                         :attributes => {:href => '/repositories/entry/ecookbook/path/in/the/repo?rev=2'},
+                                         :attributes => {:href => '/projects/ecookbook/repository/revisions/2/entry/path/in/the/repo'},
                                          :content => 'repo',
                                          # link to partial diff
                                          :sibling =>  { :tag => 'a', 
-                                                        :attributes => { :href => '/repositories/diff/ecookbook/path/in/the/repo?rev=2' } 
+                                                        :attributes => { :href => '/projects/ecookbook/repository/revisions/2/diff/path/in/the/repo' } 
                                                        }
                                         }
                             }
     end
     
-    def test_diff
+    def test_revision_diff
       get :diff, :id => 1, :rev => 3
       assert_response :success
       assert_template 'diff'
+    end
+
+    def test_directory_diff
+      get :diff, :id => 1, :rev => 6, :rev_to => 2, :path => ['subversion_test', 'folder']
+      assert_response :success
+      assert_template 'diff'
+      
+      diff = assigns(:diff)
+      assert_not_nil diff
+      # 2 files modified
+      assert_equal 2, Redmine::UnifiedDiff.new(diff).size
     end
     
     def test_annotate

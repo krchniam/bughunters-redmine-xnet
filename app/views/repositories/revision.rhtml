@@ -1,20 +1,20 @@
 <div class="contextual">
   &#171;
   <% unless @changeset.previous.nil? -%>
-    <%= link_to l(:label_previous), :controller => 'repositories', :action => 'revision', :id => @project, :rev => @changeset.previous.revision %>
+    <%= link_to_revision(@changeset.previous.revision, @project, :text => l(:label_previous)) %>
   <% else -%>
     <%= l(:label_previous) %>
   <% end -%>
 |
   <% unless @changeset.next.nil? -%>
-    <%= link_to l(:label_next), :controller => 'repositories', :action => 'revision', :id => @project, :rev => @changeset.next.revision %>
+    <%= link_to_revision(@changeset.next.revision, @project, :text => l(:label_next)) %>
   <% else -%>
     <%= l(:label_next) %>
   <% end -%>
   &#187;&nbsp;
-  
+
   <% form_tag({:controller => 'repositories', :action => 'revision', :id => @project, :rev => nil}, :method => :get) do %>
-    <%= text_field_tag 'rev', @rev, :size => 5 %>
+    <%= text_field_tag 'rev', @rev[0,8], :size => 8 %>
     <%= submit_tag 'OK', :name => nil %>
   <% end %>
 </div>
@@ -26,15 +26,16 @@
 
 <%= textilizable @changeset.comments %>
 
-<% if @changeset.issues.any? %>
+<% if @changeset.issues.visible.any? %>
 <h3><%= l(:label_related_issues) %></h3>
 <ul>
-<% @changeset.issues.each do |issue| %>
-  <li><%= link_to_issue issue %>: <%=h issue.subject %></li>
+<% @changeset.issues.visible.each do |issue| %>
+  <li><%= link_to_issue issue %></li>
 <% end %>
 </ul>
 <% end %>
 
+<% if User.current.allowed_to?(:browse_repository, @project) %>
 <h3><%= l(:label_attachment_plural) %></h3>
 <ul id="changes-legend">
 <li class="change change-A"><%= l(:label_added) %></li>
@@ -49,6 +50,7 @@
 <div class="changeset-changes">
 <%= render_changeset_changes %>
 </div>
+<% end %>
 
 <% content_for :header_tags do %>
 <%= stylesheet_link_tag "scm" %>

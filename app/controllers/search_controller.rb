@@ -34,7 +34,7 @@ class SearchController < ApplicationController
       when 'my_projects'
         User.current.memberships.collect(&:project)
       when 'subprojects'
-        @project ? ([ @project ] + @project.active_children) : nil
+        @project ? (@project.self_and_descendants.active) : nil
       else
         @project
       end
@@ -43,7 +43,7 @@ class SearchController < ApplicationController
     begin; offset = params[:offset].to_time if params[:offset]; rescue; end
     
     # quick jump to an issue
-    if @question.match(/^#?(\d+)$/) && Issue.find_by_id($1, :include => :project, :conditions => Project.visible_by(User.current))
+    if @question.match(/^#?(\d+)$/) && Issue.visible.find_by_id($1)
       redirect_to :controller => "issues", :action => "show", :id => $1
       return
     end
@@ -62,8 +62,8 @@ class SearchController < ApplicationController
     # extract tokens from the question
     # eg. hello "bye bye" => ["hello", "bye bye"]
     @tokens = @question.scan(%r{((\s|^)"[\s\w]+"(\s|$)|\S+)}).collect {|m| m.first.gsub(%r{(^\s*"\s*|\s*"\s*$)}, '')}
-    # tokens must be at least 3 character long
-    @tokens = @tokens.uniq.select {|w| w.length > 2 }
+    # tokens must be at least 2 characters long
+    @tokens = @tokens.uniq.select {|w| w.length > 1 }
     
     if !@tokens.empty?
       # no more than 5 tokens to search for

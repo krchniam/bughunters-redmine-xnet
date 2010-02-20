@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class DocumentsController < ApplicationController
+  default_search_scope :documents
   before_filter :find_project, :only => [:index, :new]
   before_filter :find_document, :except => [:index, :new]
   before_filter :authorize
@@ -27,7 +28,7 @@ class DocumentsController < ApplicationController
     documents = @project.documents.find :all, :include => [:attachments, :category]
     case @sort_by
     when 'date'
-      @grouped = documents.group_by {|d| d.created_on.to_date }
+      @grouped = documents.group_by {|d| d.updated_on.to_date }
     when 'title'
       @grouped = documents.group_by {|d| d.title.first.upcase}
     when 'author'
@@ -48,13 +49,12 @@ class DocumentsController < ApplicationController
     if request.post? and @document.save	
       attach_files(@document, params[:attachments])
       flash[:notice] = l(:notice_successful_create)
-      Mailer.deliver_document_added(@document) if Setting.notified_events.include?('document_added')
       redirect_to :action => 'index', :project_id => @project
     end
   end
   
   def edit
-    @categories = Enumeration::get_values('DCAT')
+    @categories = DocumentCategory.all
     if request.post? and @document.update_attributes(params[:document])
       flash[:notice] = l(:notice_successful_update)
       redirect_to :action => 'show', :id => @document

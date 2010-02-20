@@ -17,6 +17,7 @@
 
 class MessagesController < ApplicationController
   menu_item :boards
+  default_search_scope :messages
   before_filter :find_board, :only => [:new, :preview]
   before_filter :find_message, :except => [:new, :preview]
   before_filter :authorize, :except => [:preview, :edit, :destroy]
@@ -67,7 +68,7 @@ class MessagesController < ApplicationController
 
   # Edit a message
   def edit
-    render_403 and return false unless @message.editable_by?(User.current)
+    (render_403; return false) unless @message.editable_by?(User.current)
     if params[:message]
       @message.locked = params[:message]['locked']
       @message.sticky = params[:message]['sticky']
@@ -75,13 +76,14 @@ class MessagesController < ApplicationController
     if request.post? && @message.update_attributes(params[:message])
       attach_files(@message, params[:attachments])
       flash[:notice] = l(:notice_successful_update)
-      redirect_to :action => 'show', :id => @topic
+      @message.reload
+      redirect_to :action => 'show', :board_id => @message.board, :id => @message.root
     end
   end
   
   # Delete a messages
   def destroy
-    render_403 and return false unless @message.destroyable_by?(User.current)
+    (render_403; return false) unless @message.destroyable_by?(User.current)
     @message.destroy
     redirect_to @message.parent.nil? ?
       { :controller => 'boards', :action => 'show', :project_id => @project, :id => @board } :
@@ -91,9 +93,12 @@ class MessagesController < ApplicationController
   def quote
     user = @message.author
     text = @message.content
+    subject = @message.subject.gsub('"', '\"')
+    subject = "RE: #{subject}" unless subject.starts_with?('RE:')
     content = "#{ll(Setting.default_language, :text_user_wrote, user)}\\n> "
     content << text.to_s.strip.gsub(%r{<pre>((.|\s)*?)</pre>}m, '[...]').gsub('"', '\"').gsub(/(\r?\n|\r\n?)/, "\\n> ") + "\\n\\n"
     render(:update) { |page|
+      page << "$('reply_subject').value = \"#{subject}\";"
       page.<< "$('message_content').value = \"#{content}\";"
       page.show 'reply'
       page << "Form.Element.focus('message_content');"

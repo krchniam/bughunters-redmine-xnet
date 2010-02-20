@@ -30,7 +30,9 @@ module JournalsHelper
     end
     content << content_tag('div', links.join(' '), :class => 'contextual') unless links.empty?
     content << textilizable(journal, :notes)
-    content_tag('div', content, :id => "journal-#{journal.id}-notes", :class => (editable ? 'wiki editable' : 'wiki'))
+    css_classes = "wiki"
+    css_classes << " editable" if editable
+    content_tag('div', content, :id => "journal-#{journal.id}-notes", :class => css_classes)
   end
   
   def link_to_in_place_notes_editor(text, field_id, url, options={})
