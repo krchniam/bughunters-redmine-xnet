@@ -35,7 +35,8 @@ module ChartsHelper
 
   # Shows date condition.
   def show_date_condition(range_steps, range_in, range_offset)
-    res = l(:charts_show_last) << " "
+    res = ""
+    res << l(:charts_show_last) << " "
     res << text_field_tag(:range_steps, range_steps, :size => 4)
     res << hidden_field_tag(:range_offset, range_offset) << " "
     res << select_tag(:range_in, options_for_select(RedmineCharts::RangeUtils.in_options, range_in.to_s))
@@ -58,10 +59,11 @@ module ChartsHelper
   # Shows pages.
   def show_pages(page, pages)
     if pages > 1
+      res = ""
       if page == 1
-        res = l(:charts_previous)
+        res << l(:charts_previous)
       else
-        res = link_to_function(l(:charts_previous), :onclick => 'charts_previous();')
+        res << link_to_function(l(:charts_previous), :onclick => 'charts_previous();')
       end
 
       res << ' - '

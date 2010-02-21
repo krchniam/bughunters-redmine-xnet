@@ -35,11 +35,13 @@ module RedmineCharts
           
           ["time_entries.user_id".to_sym, users.to_a.unshift([l(:charts_condition_all), 0])]
         when "time_entries.issue_id".to_sym then ["time_entries.issue_id".to_sym, nil]
-        when "time_entries.activity_id".to_sym then ["time_entries.activity_id".to_sym, Enumeration.find_all_by_opt("ACTI").collect { |a| [a.name, a.id] }.unshift([l(:charts_condition_all), 0])]
+#        when "time_entries.activity_id".to_sym then ["time_entries.activity_id".to_sym, Enumeration.find_all_by_opt("ACTI").collect { |a| [a.name, a.id] }.unshift([l(:charts_condition_all), 0])]
+        when "time_entries.activity_id".to_sym then ["time_entries.activity_id".to_sym, Enumeration.find_all_by_type("TimeEntryActivity").collect { |a| [a.name, a.id] }.unshift([l(:charts_condition_all), 0])]
         when "issues.category_id".to_sym then ["issues.category_id".to_sym, IssueCategory.find_all_by_project_id(project_and_its_children_ids(project_id)).collect { |c| [c.name, c.id] }.unshift([l(:charts_condition_all), 0])]
         when "issues.fixed_version_id".to_sym then ["issues.fixed_version_id".to_sym, Version.find_all_by_project_id(project_and_its_children_ids(project_id)).collect { |c| [c.name, c.id] }.unshift([l(:charts_condition_all), 0])]
         when "issues.tracker_id".to_sym then ["issues.tracker_id".to_sym, Tracker.all.collect { |c| [c.name, c.id] }.unshift([l(:charts_condition_all), 0])]
-        when "issues.priority_id".to_sym then ["issues.priority_id".to_sym, Enumeration.find_all_by_opt("IPRI").collect { |a| [a.name, a.id] }.unshift([l(:charts_condition_all), 0])]
+#        when "issues.priority_id".to_sym then ["issues.priority_id".to_sym, Enumeration.find_all_by_opt("IPRI").collect { |a| [a.name, a.id] }.unshift([l(:charts_condition_all), 0])]
+        when "issues.priority_id".to_sym then ["issues.priority_id".to_sym, Enumeration.find_all_by_type("IssuePriority").collect { |a| [a.name, a.id] }.unshift([l(:charts_condition_all), 0])]
         end
       end
     end

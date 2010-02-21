@@ -242,10 +242,11 @@ class ChartsDeviationController < ChartsController
   end
 
   def get_remaining_hint(logged_ratio, remaining_ratio, done_ratio, logged_hours, remaining_hours, estimated_hours, row = nil)
+    hint =""
     if logged_ratio + remaining_ratio > 100 # Issue is delayed.
-      hint = l(:charts_deviation_hint_remaining_over_estimation, { :remaining_hours => RedmineCharts::Utils.round(remaining_hours), :hours_over_estimation => RedmineCharts::Utils.round(logged_hours.to_f + remaining_hours.to_f - estimated_hours.to_f), :over_estimation => (logged_ratio.to_f + remaining_ratio.to_f - 100).round })
+      hint << l(:charts_deviation_hint_remaining_over_estimation, { :remaining_hours => RedmineCharts::Utils.round(remaining_hours), :hours_over_estimation => RedmineCharts::Utils.round(logged_hours.to_f + remaining_hours.to_f - estimated_hours.to_f), :over_estimation => (logged_ratio.to_f + remaining_ratio.to_f - 100).round })
     else
-      hint = l(:charts_deviation_hint_remaining, { :remaining_hours => RedmineCharts::Utils.round(remaining_hours) })
+      hint << l(:charts_deviation_hint_remaining, { :remaining_hours => RedmineCharts::Utils.round(remaining_hours) })
     end
     hint << l(:charts_deviation_hint_issue, { :estimated_hours => RedmineCharts::Utils.round(estimated_hours), :work_done => done_ratio.to_f.round })
     if row
@@ -257,10 +258,11 @@ class ChartsDeviationController < ChartsController
   end
 
   def get_logged_hint(logged_ratio, remaining_ratio, done_ratio, logged_hours, estimated_hours, row = nil)
+    hint = ""
     if logged_ratio > 100 and remaining_ratio == 0 # Issue is finished.
-      hint = l(:charts_deviation_hint_logged_over_estimation, { :logged_hours => RedmineCharts::Utils.round(logged_hours), :hours_over_estimation => RedmineCharts::Utils.round(logged_hours.to_f - estimated_hours.to_f), :over_estimation => (logged_ratio.to_f - 100).round })
+      hint << l(:charts_deviation_hint_logged_over_estimation, { :logged_hours => RedmineCharts::Utils.round(logged_hours), :hours_over_estimation => RedmineCharts::Utils.round(logged_hours.to_f - estimated_hours.to_f), :over_estimation => (logged_ratio.to_f - 100).round })
     else
-      hint = l(:charts_deviation_hint_logged, { :logged_hours => RedmineCharts::Utils.round(logged_hours) })
+      hint << l(:charts_deviation_hint_logged, { :logged_hours => RedmineCharts::Utils.round(logged_hours) })
     end
     hint << l(:charts_deviation_hint_issue, { :estimated_hours => RedmineCharts::Utils.round(estimated_hours), :work_done => done_ratio.to_f.round })
     if row
