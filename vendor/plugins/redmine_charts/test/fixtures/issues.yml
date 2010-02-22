@@ -1,0 +1,108 @@
+--- 
+charts_issues_001:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  project_id: 15041
+  updated_on: <%= 39.day.ago.to_date.to_s(:db) %>
+  priority_id: 15044
+  subject: Issue1
+  id: 15041
+  fixed_version_id: 15041
+  category_id: 15041
+  description: Issue1
+  tracker_id: 15041
+  assigned_to_id: 15042
+  author_id: 15042
+  status_id: 15043
+  start_date: <%= 40.day.ago.to_date.to_s(:db) %>
+  due_date: <%= 37.day.ago.to_date.to_s(:db) %>
+  done_ratio: 100
+  estimated_hours: 10
+charts_issues_002:
+  created_on: <%= 8.day.ago.to_date.to_s(:db) %>
+  project_id: 15042
+  updated_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  priority_id: 15044
+  subject: Issue2
+  id: 15042
+  fixed_version_id:
+  category_id: 15043
+  description: Issue2
+  tracker_id: 15041
+  assigned_to_id: 15043
+  author_id: 15043
+  status_id: 15042
+  start_date: <%= 8.day.ago.to_date.to_s(:db) %>
+  done_ratio: 100
+  due_date: <%= 2.day.ago.to_date.to_s(:db) %>
+  estimated_hours: 5
+charts_issues_003:
+  created_on: <%= 9.day.ago.to_date.to_s(:db) %>
+  project_id: 15041
+  updated_on: <%= 3.day.ago.to_date.to_s(:db) %>
+  priority_id: 15044
+  subject: Issue3
+  id: 15043
+  fixed_version_id: 15042
+  category_id: 15042
+  description: Issue3
+  tracker_id: 15042
+  assigned_to_id: 15042
+  author_id: 15042
+  status_id: 15042
+  start_date: <%= 9.day.ago.to_date.to_s(:db) %>
+  due_date: <%= 2.day.from_now.to_date.to_s(:db) %>
+  done_ratio: 60
+  estimated_hours: 8
+charts_issues_004:
+  created_on: <%= 6.day.ago.to_date.to_s(:db) %>
+  project_id: 1
+  updated_on: <%= 4.day.ago.to_date.to_s(:db) %>
+  priority_id: 15043
+  subject: Issue4
+  id: 15044
+  fixed_version_id: 15041
+  category_id: 15042
+  description: Issue4
+  tracker_id: 15042
+  assigned_to_id: 15042
+  author_id: 15043
+  status_id: 15042
+  start_date: <%= 9.day.ago.to_date.to_s(:db) %>
+  due_date: <%= 2.day.from_now.to_date.to_s(:db) %>
+  done_ratio: 60
+charts_issues_005:
+  created_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  project_id: 15041
+  updated_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  priority_id: 15043
+  subject: Issue5
+  id: 15045
+  fixed_version_id: 15042
+  category_id: 15041
+  description: Issue5
+  tracker_id: 15041
+  assigned_to_id: 15043
+  author_id: 15042
+  status_id: 15041
+  start_date: <%= 2.day.ago.to_date.to_s(:db) %>
+  due_date: <%= 5.day.from_now.to_date.to_s(:db) %>
+  done_ratio: 60
+  estimated_hours: 12
+charts_issues_006:
+  created_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  project_id: 15043
+  updated_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  priority_id: 15043
+  subject: Issue5
+  id: 15046
+  fixed_version_id: 15042
+  category_id: 15041
+  description: Issue5
+  tracker_id: 15041
+  assigned_to_id: 15043
+  author_id: 15042
+  status_id: 15043
+  start_date: <%= 2.day.ago.to_date.to_s(:db) %>
+  due_date: <%= 5.day.from_now.to_date.to_s(:db) %>
+  done_ratio: 60
+  estimated_hours: 12

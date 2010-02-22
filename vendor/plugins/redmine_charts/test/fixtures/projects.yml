@@ -1,0 +1,31 @@
+--- 
+charts_projects_001:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  name: Project1
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  id: 15041
+  description: Project1
+  homepage: http://example.foo/
+  is_public: true
+  identifier: charts_project1
+  parent_id:
+charts_projects_002:
+  created_on: <%= 39.day.ago.to_date.to_s(:db) %>
+  name: Project2
+  updated_on: <%= 2.day.ago.to_date.to_s(:db) %>
+  id: 15042
+  description: Project2
+  homepage: http://example.foo/
+  is_public: true
+  identifier: charts_project2
+  parent_id: 15041
+charts_projects_003:
+  created_on: <%= 40.day.ago.to_date.to_s(:db) %>
+  name: Project3
+  updated_on: <%= 1.day.ago.to_date.to_s(:db) %>
+  id: 15043
+  description: Project3
+  homepage: http://example.foo/
+  is_public: true
+  identifier: charts_project3
+  parent_id:

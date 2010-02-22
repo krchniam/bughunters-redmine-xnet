@@ -1,0 +1,65 @@
+<% html_title(l(:charts_menu_label)) -%>
+
+<% content_for :header_tags do %>
+  <%= javascript_include_tag '/plugin_assets/open_flash_chart/javascripts/swfobject.js' %>
+  <%= javascript_include_tag '/plugin_assets/redmine_charts/javascripts/charts.js' %>
+<% end %>
+
+<h2><%=l(:charts_menu_label)%>
+    <span style="font-size:small"><%= show_charts_menu %></span>
+</h2>
+
+<% if @show_left_column %>
+    <div class="splitcontentleft" style="width:30%">
+
+      <% if @help %>
+          <div class="box"><%= @help %></div>
+      <% end %>
+
+      <% form_tag '#', :method => :get do %>
+        <%= hidden_field_tag :page, @page %>
+		
+        <% if @show_conditions %>
+          <% if @sub_project_condition %>
+            <div class="box" style="text-align:center">
+              <p><%= check_box_tag :include_subprojects, "1", !params[:include_subprojects].blank? %> <%= l(:charts_condition_include_subprojects) %></p>          
+            </div>
+          <% end %>
+          <% if @date_condition %>
+            <div class="box" style="text-align:center">
+              <p><%= show_date_condition(params[:range_steps], params[:range_in], params[:range_offset]) %></p>
+            </div>
+          <% end %>
+          <% unless @grouping_options.empty? and @conditions_options.empty? %>
+            <div class="box">
+              <% unless @grouping_options.empty? %>
+                <p><%= l(:charts_group_by) %> <%= select_tag :grouping, options_for_select(@grouping_options, params[:grouping] ? params[:grouping].to_sym : nil) %></p>
+              <% end %>
+              <% @conditions_options.each do |condition| %>
+                <% if condition[1].nil? %>
+                  <p><%= l("charts_condition_#{condition[0]}".gsub(".","_").to_sym) %> <%= text_field_tag "conditions_#{condition[0]}".to_sym, params["conditions_#{condition[0]}".to_sym].blank? ? nil : Integer(params["conditions_#{condition[0]}".to_sym]) %></p>
+                <% else %>
+                  <p><%= l("charts_condition_#{condition[0]}".gsub(".","_").to_sym) %> <%= select_tag "conditions_#{condition[0]}".to_sym, options_for_select(condition[1], params["conditions_#{condition[0]}".to_sym] ? Integer(params["conditions_#{condition[0]}".to_sym]) : nil) %></p>
+                <% end %>
+              <% end %>              
+            </div>
+          <% end %>
+          <div style="text-align:center">
+            <%= submit_tag l(:charts_button) %>
+          </div>
+        <% end %>
+      <% end %>
+      <br/>
+    </div>
+<% end %>
+
+<div class="splitcontentright" style="width:<%= @show_left_column ? "68%" : "100%" %>">
+    <%= show_graph %>
+
+    <% if @show_pages %>
+      <div style="text-align:center;padding-top:20px">
+        <%= show_pages(@page, @pages) %>
+      </div>
+    <% end %>
+
+</div>
