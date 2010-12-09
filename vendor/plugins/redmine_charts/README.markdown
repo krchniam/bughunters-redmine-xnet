@@ -1,7 +1,7 @@
 Redmine Charts
 ==============
 
-Plugin for Redmine which integrates some nice project charts.
+Plugin which integrates with Redmine following charts: burndown, timeline, ratios of logged hours and issues, deviations of logged hours. 
 
 ## Instalation
 
@@ -14,22 +14,56 @@ Install OpenFlashChart plugin.
 
     $ ./script/plugin install git://github.com/pullmonkey/open_flash_chart.git
 
+Migrate database.
+
+    $ rake db:migrate:plugins
+
+Populate tables with old data.
+
+    $ rake charts:migrate
+
 Run Redmine and have a fun!
+
+## Troubleshouting
+
+### I don't see any data in charts / I don't see my old data in charts
+
+Run migration task "charts:migrate" to populate tables used by plugin with Your old data.
+
+### I don't see charts tab / I don't see link to add new saved condition
+
+Add permission to Your user.
 
 ## Translations
 
-- ja by indication
-- pt-br by enderson
+- ja by In Dow
+- pt-br by Enderson Maia
 - nl by onno-schuit
-- en by myself and trappist 
+- en by Maciej Szczytowski and Rocco Stanzione
 - ru by Vadim Kruchkov
-- es by Rafael Lorenzo 
-- pl by myself
+- es by Rafael Lorenzo, José Javier Sianes Ruiz 
+- pl by Maciej Szczytowski
 - fr by Yannick Quenec'hdu
+- ko by Ki Won Kim
+- da by Jakob Skjerning
+- de by Bernd Engelsing
 
-Thanks for contribution. 
+Thanks for the contribution. 
 
 ## Changelog
+
+### 0.1.0
+
+- migration to Redmine 0.9.x
+- new conditions (owners, authors, statuses and projects)
+- conditions in burndown chart
+- multiselection in conditions (#3)
+- new issue chart (#2)
+- issues with closed status are considered as 100% complete (#1)
+- new translations (ko, da, de)
+- new chart - burndown with velocity (#12)
+- support for subissues (#36)
+- saved condition (#24)
 
 ### 0.0.14
 
@@ -47,28 +81,16 @@ Thanks for contribution.
 - pages on deviations chart (#5)
 - hours logged for project and not estimated issues on deviations chart
 
-## Charts
+## Screenshots
 
-### Burndown
+![](http://farm4.static.flickr.com/3568/4599631980_fe37fc3fd7_o.jpg)
 
-Timeline with estimated, logged and remaining hours.
+![](http://farm5.static.flickr.com/4035/4599631940_3b4d1a2642_o.jpg)
 
-![Screenshot of hours chart](http://farm4.static.flickr.com/3487/3219872709_03a137e740_o.jpg)
+![](http://farm2.static.flickr.com/1298/4599014565_1d9be4c04d_o.jpg)
 
-### Logged hours ratio
+![](http://farm2.static.flickr.com/1159/4599014491_c22cba7925_o.jpg)
 
-Number of hours were logged proportional to total total, grouped and filtered by users, issues, activities, categories, version, priorities or trackers.
+![](http://farm2.static.flickr.com/1056/4599014527_d8b7b6457f_o.jpg)
 
-![Screenshot of groups chart](http://farm4.static.flickr.com/3313/3220723922_64540005a0_o.jpg)
-
-### Logged hours timeline
-
-Timeline with logged hours, grouped and filtered by users, issues, activities, categories, version, priorities and trackers.
-
-![Screenshot of hours chart](http://farm4.static.flickr.com/3112/3220723804_2b274e7e2f_o.jpg)
-
-### Logged hours deviations
-
-Ratio of logged and remaining hours to estimated hours for each estimated issue.
-
-![Screenshot of deviations chart](http://farm4.static.flickr.com/3441/3219872389_4f1d105c1d_o.jpg)
+![](http://farm2.static.flickr.com/1401/4599631776_65e0d0bfa2_o.jpg)

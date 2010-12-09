@@ -1,25 +1,38 @@
 --- 
-charts_enabled_modules_001:
+charts_enabled_modules_15041:
   name: issue_tracking
   project_id: 15041
   id: 15041
-charts_enabled_modules_002:
+charts_enabled_modules_15042:
   name: time_tracking
   project_id: 15041
   id: 15042
-charts_enabled_modules_003:
+charts_enabled_modules_15043:
   name: charts
   project_id: 15041
   id: 15043
-charts_enabled_modules_004:
+charts_enabled_modules_15044:
   name: issue_tracking
   project_id: 15043
   id: 15044
-charts_enabled_modules_005:
+charts_enabled_modules_15045:
   name: time_tracking
   project_id: 15043
   id: 15045
-charts_enabled_modules_006:
+charts_enabled_modules_15046:
   name: charts
   project_id: 15043
   id: 15046
+charts_enabled_modules_15047:
+  name: issue_tracking
+  project_id: 15044
+  id: 15047
+charts_enabled_modules_15048:
+  name: time_tracking
+  project_id: 15044
+  id: 15048
+charts_enabled_modules_15049:
+  name: charts
+  project_id: 15044
+  id: 15049
+

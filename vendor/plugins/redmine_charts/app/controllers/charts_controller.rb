@@ -2,15 +2,11 @@ class ChartsController < ApplicationController
 
   unloadable
 
-  unless defined?(Redmine::I18n)
-    include ChartsI18nPatch
-  end
-
   menu_item :charts
 
-  before_filter :check_params
+  before_filter :find_project
 
-  before_filter :find_project, :authorize, :only => [:index]  
+  before_filter :authorize, :only => [:index]
 
   def controller_name
     "charts"
@@ -20,11 +16,8 @@ class ChartsController < ApplicationController
   def index
     @title = get_title
 
-    @show_conditions = false
-
     if show_date_condition
       @date_condition = true
-      @show_conditions = true
     else
       @date_condition = false
     end
@@ -35,26 +28,29 @@ class ChartsController < ApplicationController
 
     unless get_grouping_options.empty?
       @grouping_options = RedmineCharts::GroupingUtils.to_options(get_grouping_options)
-      @show_conditions = true
     else
       @grouping_options = []
     end
 
+    @textconditions_options = []
+
     unless get_conditions_options.empty?
-      @conditions_options = RedmineCharts::ConditionsUtils.to_options(get_conditions_options, params[:project_id])
-      @show_conditions = true
+      @conditions_options = RedmineCharts::ConditionsUtils.to_options(get_conditions_options)
+      @textconditions_options = @conditions_options.select { |c1,c2| c2.nil? }
+      @conditions_options = @conditions_options.select { |c1,c2| not c2.nil? }
     else
       @conditions_options = []
     end
-    
-    if show_sub_project_condition
-      @show_conditions = true
-      @sub_project_condition = true
+
+    unless get_multiconditions_options.empty?
+      @multiconditions_options = RedmineCharts::ConditionsUtils.to_options(get_multiconditions_options)
+      @textconditions_options = @multiconditions_options.select { |c1,c2| c2.nil? }
+      @multiconditions_options = @multiconditions_options.select { |c1,c2| not c2.nil? }
     else
-      @sub_project_condition = false
+      @multiconditions_options = []
     end
 
-    @show_left_column = @show_conditions
+    @all_conditions_options = @conditions_options + @multiconditions_options + @textconditions_options 
 
     unless get_help.blank?
       @help = get_help
@@ -63,84 +59,113 @@ class ChartsController < ApplicationController
       @help = nil
     end
 
-    range = RedmineCharts::RangeUtils.from_params(params)
-    pagination = RedmineCharts::PaginationUtils.from_params(params)
-    grouping = RedmineCharts::GroupingUtils.from_params(params)
-    conditions = RedmineCharts::ConditionsUtils.from_params(params, get_conditions_options)
+    @range = RedmineCharts::RangeUtils.from_params(params)
+    @pagination = RedmineCharts::PaginationUtils.from_params(params)
+    @grouping = RedmineCharts::GroupingUtils.from_params(get_grouping_options, params)
+    @conditions = RedmineCharts::ConditionsUtils.from_params(get_conditions_options + get_multiconditions_options, @project.id, params)
 
-    prepare_view(conditions, grouping, range, pagination)
+    if params[:chart_form_action] == 'saved_condition_update'
+      @saved_condition = create_saved_condition(:update, @conditions, @grouping)
+    elsif params[:chart_form_action] == 'saved_condition_create'
+      @saved_condition = create_saved_condition(:create, @conditions, @grouping)
+    end
+
+    unless @saved_condition
+      @saved_condition = ChartSavedCondition.first(:conditions => {:id => params[:saved_condition_id]}) if params[:saved_condition_id]
+    end
+
+    @saved_conditions = ChartSavedCondition.all(:conditions => ["project_id is null or project_id = ?", @project.id])
+
+    create_chart
+
+    if @error and not flash[:error]
+      flash[:error] = l(@error)
+    end
 
     render :template => "charts/index"
   end
 
-  # Return data for chart
-  def data
-    chart =OpenFlashChart.new
+  def destroy_saved_condition
+    condition = ChartSavedCondition.first(:conditions => {:id => params[:id]})
 
-    range = RedmineCharts::RangeUtils.from_params(params)
-    pagination = RedmineCharts::PaginationUtils.from_params(params)
-    grouping = RedmineCharts::GroupingUtils.from_params(params)
-    conditions = RedmineCharts::ConditionsUtils.from_params(params, get_conditions_options)
-
-    data = get_data(conditions, grouping, range, pagination)
-
-    get_converter.convert(chart, data)
-   
-    if show_y_axis
-      y = YAxis.new
-      y.set_range(0,(data[:max]*1.2).round,(data[:max]/get_y_axis_labels).round) if data[:max]
-      chart.y_axis = y
-    end
-
-    if show_x_axis
-      x = XAxis.new
-      x.set_range(0,data[:count],1) if data[:count]
-      if data[:labels]
-        labels = []
-        if get_x_axis_labels > 0
-          step = (data[:labels].size/get_y_axis_labels).to_i
-          step = 1 if step == 0
-        else
-          step = 1
-        end
-        data[:labels].each_with_index do |l,i|
-          if i % step == 0
-            labels << l
-          else 
-            labels << ""
-          end
-        end
-        x.set_labels(labels)
-      end
-      chart.x_axis = x
+    unless condition
+      flash[:error] = l(:charts_saved_condition_flash_not_found)
     else
-      x = XAxis.new
-      x.set_labels([""])
-      chart.x_axis = x
+      condition.destroy
+      flash[:notice] = l(:charts_saved_condition_flash_deleted)
     end
 
-    unless get_x_legend.nil?
-      legend = XLegend.new(get_x_legend)
-      legend.set_style('{font-size: 12px}')
-      chart.set_x_legend(legend)
-    end
-    
-    unless get_x_legend.nil?
-      legend = YLegend.new(get_y_legend)
-      legend.set_style('{font-size: 12px}')
-      chart.set_y_legend(legend)
-    end
+    redirect_to :action => :index
+  end
 
-    chart.set_bg_colour('#ffffff');
+  protected
 
-    render :text => chart.to_s
+  # Return data for chart
+  def create_chart
+    chart = OpenFlashChart.new
+
+    data = get_data
+
+    if data[:error]
+      @error = data[:error]
+      @data = nil
+    else
+      get_converter.convert(chart, data)
+
+      if get_y_legend
+        y = YAxis.new
+        y.set_range(0,(data[:max]*1.2).round,(data[:max]/get_y_axis_labels).round) if data[:max]
+        chart.y_axis = y
+      end
+
+      if get_x_legend
+        x = XAxis.new
+        x.set_range(0,data[:count] > 1 ? data[:count] - 1 : 1,1) if data[:count]
+        if data[:labels]
+          labels = []
+          if get_x_axis_labels > 0
+            step = (data[:labels].size/get_x_axis_labels).to_i
+            step = 1 if step == 0
+          else
+            step = 1
+          end
+          data[:labels].each_with_index do |l,i|
+            if i % step == 0
+              labels << l
+            else
+              labels << ""
+            end
+          end
+          x.set_labels(labels)
+        end
+        chart.x_axis = x
+      else
+        x = XAxis.new
+        x.set_labels([""])
+        chart.x_axis = x
+      end
+
+      unless get_x_legend.nil?
+        legend = XLegend.new(get_x_legend)
+        legend.set_style('{font-size: 12px}')
+        chart.set_x_legend(legend)
+      end
+
+      unless get_x_legend.nil?
+        legend = YLegend.new(get_y_legend)
+        legend.set_style('{font-size: 12px}')
+        chart.set_y_legend(legend)
+      end
+
+      chart.set_bg_colour('#ffffff');
+
+      @data = chart.to_s
+    end
   end
 
   def title
     get_title
   end
-
-  protected
 
   # Returns chart title
   def get_title
@@ -149,7 +174,7 @@ class ChartsController < ApplicationController
 
   # Returns chart type: line, pie or stack
   def get_type
-    "line"
+    :line
   end
 
   # Returns help string, displayed above chart
@@ -157,18 +182,13 @@ class ChartsController < ApplicationController
     nil
   end
 
-  # Prepares data for view
-  def prepare_view(conditions, grouping, range, pagination)
-    nil
-  end
-
   # Returns data for chart
-  def get_data(conditions, grouping, range, pagination)
+  def get_data
     raise "overwrite it"
   end
 
   # Returns hints for given record and grouping type
-  def get_hints(record, grouping)
+  def get_hints(record)
     nil
   end
 
@@ -182,19 +202,9 @@ class ChartsController < ApplicationController
     nil
   end
 
-  # Returns true if X axis should be displayed
-  def show_x_axis
-    false
-  end
-
   # Returns how many labels should be displayed on x axis. 0 means all labels.
   def get_x_axis_labels
     5
-  end
-
-  # Returns true if Y axis should be displayed
-  def show_y_axis
-    false
   end
 
   # Returns how many labels should be displayed on y axis. 0 means all labels.
@@ -212,19 +222,19 @@ class ChartsController < ApplicationController
     false
   end
   
-  # Returns true if checkbox "include subprojects in chart data"
-  def show_sub_project_condition
-    true
-  end
-
   # Returns values for grouping options
   def get_grouping_options
-    RedmineCharts::GroupingUtils.default_types
+    []
   end
 
   # Returns type of conditions available for that chart
   def get_conditions_options
-    RedmineCharts::ConditionsUtils.default_types
+    []
+  end
+
+  # Returns type of conditions available for that chart
+  def get_multiconditions_options
+    []
   end
 
   private
@@ -241,9 +251,41 @@ class ChartsController < ApplicationController
     render_404
   end
 
-  # Checks and sets default params values
-  def check_params
-    RedmineCharts::RangeUtils.set_params(params)    
+  def create_saved_condition(action, conditions, grouping)
+    if action == :create
+      condition = ChartSavedCondition.new
+    else
+      condition = ChartSavedCondition.first(:conditions => {:id => params[:saved_condition_id]})
+    end
+
+    unless condition
+      flash[:error] = l(:charts_saved_condition_flash_not_found)
+    else
+      condition.name = params["saved_condition_#{action}_name".to_sym]
+      condition.project_id = params["saved_condition_#{action}_project_id".to_sym]
+      condition.chart = self.class.name.underscore.sub("charts_","").sub("_controller","")
+
+      conditions[:grouping] = grouping
+
+      condition.conditions = conditions
+
+      if condition.save
+        flash[:notice] = l("charts_saved_condition_flash_#{action}d".to_sym)
+        condition
+      else
+        if condition.errors
+          if condition.errors.on(:name) == 'can\'t be blank'
+            flash[:error] = l(:charts_saved_condition_flash_name_cannot_be_blank)
+          elsif condition.errors.on(:name) == 'has already been taken'
+            flash[:error] = l(:charts_saved_condition_flash_name_exists)
+          else
+            flash[:error] = condition.errors.full_messages.join("<br/>")
+          end
+        end
+
+        nil
+      end
+    end
   end
 
 end

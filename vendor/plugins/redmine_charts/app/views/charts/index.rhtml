@@ -5,56 +5,69 @@
   <%= javascript_include_tag '/plugin_assets/redmine_charts/javascripts/charts.js' %>
 <% end %>
 
-<h2><%=l(:charts_menu_label)%>
-    <span style="font-size:small"><%= show_charts_menu %></span>
-</h2>
+<% content_for :sidebar do %>
+  <h3><%= l(:charts_menu_label) %></h3>
+  <%= show_charts_menu %>
 
-<% if @show_left_column %>
-    <div class="splitcontentleft" style="width:30%">
-
-      <% if @help %>
-          <div class="box"><%= @help %></div>
-      <% end %>
-
-      <% form_tag '#', :method => :get do %>
-        <%= hidden_field_tag :page, @page %>
-		
-        <% if @show_conditions %>
-          <% if @sub_project_condition %>
-            <div class="box" style="text-align:center">
-              <p><%= check_box_tag :include_subprojects, "1", !params[:include_subprojects].blank? %> <%= l(:charts_condition_include_subprojects) %></p>          
-            </div>
-          <% end %>
-          <% if @date_condition %>
-            <div class="box" style="text-align:center">
-              <p><%= show_date_condition(params[:range_steps], params[:range_in], params[:range_offset]) %></p>
-            </div>
-          <% end %>
-          <% unless @grouping_options.empty? and @conditions_options.empty? %>
-            <div class="box">
-              <% unless @grouping_options.empty? %>
-                <p><%= l(:charts_group_by) %> <%= select_tag :grouping, options_for_select(@grouping_options, params[:grouping] ? params[:grouping].to_sym : nil) %></p>
-              <% end %>
-              <% @conditions_options.each do |condition| %>
-                <% if condition[1].nil? %>
-                  <p><%= l("charts_condition_#{condition[0]}".gsub(".","_").to_sym) %> <%= text_field_tag "conditions_#{condition[0]}".to_sym, params["conditions_#{condition[0]}".to_sym].blank? ? nil : Integer(params["conditions_#{condition[0]}".to_sym]) %></p>
-                <% else %>
-                  <p><%= l("charts_condition_#{condition[0]}".gsub(".","_").to_sym) %> <%= select_tag "conditions_#{condition[0]}".to_sym, options_for_select(condition[1], params["conditions_#{condition[0]}".to_sym] ? Integer(params["conditions_#{condition[0]}".to_sym]) : nil) %></p>
-                <% end %>
-              <% end %>              
-            </div>
-          <% end %>
-          <div style="text-align:center">
-            <%= submit_tag l(:charts_button) %>
-          </div>
-        <% end %>
-      <% end %>
-      <br/>
-    </div>
+  <% unless @saved_conditions.empty? %>
+    <h3><%= l(:charts_saved_conditions_label) %></h3>    
+    <% @saved_conditions.each do |saved_condition| %>
+      <%= link_to(saved_condition.name, "#{url_for(:controller => "charts_#{saved_condition.chart}".to_sym, :project_id => @project)}?#{saved_condition.conditions}&saved_condition_id=#{saved_condition.id}") %><br/>
+    <% end %>
+  <% end %>
 <% end %>
 
-<div class="splitcontentright" style="width:<%= @show_left_column ? "68%" : "100%" %>">
-    <%= show_graph %>
+<div class="contextual">
+  <% if @saved_condition && User.current.allowed_to?(:save_charts, @project, :global => true) %>    
+	<%= link_to l(:button_delete_condition), {:action => 'destroy_saved_condition', :project_id => @project, :id => @saved_condition.id}, :confirm => l(:text_are_you_sure), :method => :post, :class => 'icon icon-del' %>
+  <% end %>
+</div>
+
+<h2><%= @title %><%= " - #{@saved_condition.name}" if @saved_condition %></h2>
+
+<% form_tag '#', :method => :get, :id => 'chart_form' do %>
+
+  <%= hidden_field_tag :page, @page %>
+  <%= hidden_field_tag :project_id, @project.id %>
+  <%= hidden_field_tag :saved_condition_id, @saved_condition ? @saved_condition.id : nil %>
+  <%= hidden_field_tag :chart_form_action, "", :id => "chart_form_action" %>  
+
+  <div id="query_form_content">
+
+    <% if @help %>
+      <p><%= @help %></p>
+    <% end %>
+
+    <fieldset id="filters" class="collapsible">
+      <legend onclick="toggleFieldset(this);"><%= l(:label_filter_plural) %></legend>
+      <div>
+        <%= render :partial => 'charts/filters' %>
+      </div>
+    </fieldset>
+
+  <p class="buttons">
+    <%= submit_tag l(:button_apply), :class => 'button-small', :onclick => "$('chart_form_action').value = ''; $('page') = '1'; $('chart_form').submit(); return false;" %>
+
+    <%= link_to l(:button_clear), {}, :class => 'icon icon-reload' %>
+
+    <% if User.current.allowed_to?(:save_charts, @project, :global => true) %>
+      <% if @saved_condition %>
+        <%= link_to l(:button_save_condition), {}, :onclick => "$('saved_condition_create').hide(); $('saved_condition_update').show(); return false;", :class => 'icon icon-save' %>
+        <%= link_to l(:button_save_condition_as_new), {}, :onclick => "$('saved_condition_update').hide(); $('saved_condition_create').show(); return false;", :class => 'icon icon-save' %>
+      <% else %>
+        <%= link_to l(:button_save_condition), {}, :onclick => "$('saved_condition_create').show(); return false;", :class => 'icon icon-save' %>
+      <% end %>
+    <% end %>
+  </p>
+
+  <% if User.current.allowed_to?(:save_charts, @project, :global => true) %>
+    <%= render :partial => 'charts/saved_conditions' %>
+  <% end %>
+
+  <br/>
+
+  <% unless @error %>
+    <%= show_graph(@data) %>
 
     <% if @show_pages %>
       <div style="text-align:center;padding-top:20px">
@@ -62,4 +75,12 @@
       </div>
     <% end %>
 
-</div>
+    <% if @date_condition %>
+      <div style="text-align:center;padding-top:20px">
+        <%= show_date_condition(@range[:limit], @range[:range], @range[:offset]) %>
+      </div>
+    <% end %>
+
+  <% end %>
+
+<% end %>

@@ -3,7 +3,7 @@ module RedmineCharts
 
     @@colors = ['#80C31C', '#FF7900', '#DFC329', '#00477F', '#d01f3c', '#356aa0', '#C79810', '#4C88BE', '#5E4725', '#6363AC']
 
-    @@controllers = %w{burndown ratio timeline deviation}.collect { |name| [name.to_sym, "charts_#{name}".to_sym] }
+    @@controllers = %w{burndown burndown2 ratio timeline deviation issue}.collect { |name| [name.to_sym, "charts_#{name}".to_sym] }
 
     # Returns default controller name, which should be entry when user click 'charts' label in project menu.
     # See init.rb.
@@ -32,7 +32,15 @@ module RedmineCharts
     end
 
     def self.round(i)
-      ((i.to_f*10).round).to_f/10
+      ((i.to_f*10).ceil).to_f/10
+    end
+
+    def self.percent(value, total)
+      if total > 0
+        (value.to_f/total*100).round
+      else
+        0
+      end
     end
 
   end

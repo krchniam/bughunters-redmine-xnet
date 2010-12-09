@@ -1,14 +1,14 @@
 function charts_earlier() {
-    $('range_offset').value = parseInt($('range_offset').value) + 1;
-    $('range_offset').form.submit();
+    $('offset').value = parseInt($('offset').value) + parseInt($('limit').value);
+    $('offset').form.submit();
 }
 
 function charts_later() {
-    $('range_offset').value = parseInt($('range_offset').value) - 1;
-    if($('range_offset').value < 1) {
-        $('range_offset').value = 1;
+    $('offset').value = parseInt($('offset').value) - parseInt($('limit').value);
+    if($('offset').value < 1) {
+        $('offset').value = 1;
     }
-    $('range_offset').form.submit();
+    $('offset').form.submit();
 }
 
 function charts_previous() {

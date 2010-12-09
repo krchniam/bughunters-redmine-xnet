@@ -1,13 +1,16 @@
 --- 
-charts_projects_trackers_001:
+charts_projects_trackers_15041:
   project_id: 15041
-  tracker_id: 15041
-charts_projects_trackers_002:
+  tracker_id: 1
+charts_projects_trackers_15042:
   project_id: 15041
-  tracker_id: 15042
-charts_projects_trackers_003:
+  tracker_id: 2
+charts_projects_trackers_15043:
   project_id: 15042
-  tracker_id: 15041
-charts_projects_trackers_004:
-  project_id: 15043
-  tracker_id: 15041
+  tracker_id: 3
+charts_projects_trackers_15044:
+  project_id: 15044
+  tracker_id: 1
+charts_projects_trackers_15045:
+  project_id: 15044
+  tracker_id: 2

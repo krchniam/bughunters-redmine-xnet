@@ -1,61 +1,61 @@
 --- 
-charts_journal_details_001:
+charts_journal_details_15041:
   old_value: "0"
   property: attr
   id: 15041
   value: "30"
   prop_key: done_ratio
   journal_id: 15041
-charts_journal_details_002:
+charts_journal_details_15042:
   old_value: "30"
   property: attr
   id: 15042
   value: "100"
   prop_key: done_ratio
   journal_id: 15042
-charts_journal_details_003:
+charts_journal_details_15043:
   old_value: "15041"
   property: attr
   id: 15043
   value: "15043"
   prop_key: status_id
   journal_id: 15042
-charts_journal_details_004:
+charts_journal_details_15044:
   old_value: "15041"
   property: attr
   id: 15044
   value: "15042"
   prop_key: status_id
   journal_id: 15043
-charts_journal_details_005:
+charts_journal_details_15045:
   old_value: "0"
   property: attr
   id: 15045
   value: "100"
   prop_key: done_ratio
   journal_id: 15043
-charts_journal_details_006:
+charts_journal_details_15046:
   old_value: "15041"
   property: attr
   id: 15046
   value: "15042"
   prop_key: status_id
   journal_id: 15044
-charts_journal_details_007:
+charts_journal_details_15047:
   old_value: "0"
   property: attr
   id: 15047
   value: "60"
   prop_key: done_ratio
   journal_id: 15044
-charts_journal_details_008:
+charts_journal_details_15048:
   old_value: "0"
   property: attr
   id: 15048
   value: "30"
   prop_key: done_ratio
   journal_id: 15045
-charts_journal_details_009:
+charts_journal_details_15049:
   old_value: "30"
   property: attr
   id: 15049
