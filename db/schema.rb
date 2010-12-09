@@ -9,7 +9,7 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20091227112908) do
+ActiveRecord::Schema.define(:version => 20100819172912) do
 
   create_table "attachments", :force => true do |t|
     t.integer  "container_id",                 :default => 0,  :null => false
@@ -63,8 +63,8 @@ ActiveRecord::Schema.define(:version => 20091227112908) do
   create_table "changes", :force => true do |t|
     t.integer "changeset_id",                               :null => false
     t.string  "action",        :limit => 1, :default => "", :null => false
-    t.string  "path",                       :default => "", :null => false
-    t.string  "from_path"
+    t.text    "path",                                       :null => false
+    t.text    "from_path"
     t.string  "from_revision"
     t.string  "revision"
     t.string  "branch"
@@ -85,6 +85,7 @@ ActiveRecord::Schema.define(:version => 20091227112908) do
 
   add_index "changesets", ["committed_on"], :name => "index_changesets_on_committed_on"
   add_index "changesets", ["repository_id", "revision"], :name => "changesets_repos_rev", :unique => true
+  add_index "changesets", ["repository_id", "scmid"], :name => "changesets_repos_scmid"
   add_index "changesets", ["repository_id"], :name => "index_changesets_on_repository_id"
   add_index "changesets", ["user_id"], :name => "index_changesets_on_user_id"
 
@@ -238,6 +239,10 @@ ActiveRecord::Schema.define(:version => 20091227112908) do
     t.date     "start_date"
     t.integer  "done_ratio",       :default => 0,  :null => false
     t.float    "estimated_hours"
+    t.integer  "parent_id"
+    t.integer  "root_id"
+    t.integer  "lft"
+    t.integer  "rgt"
   end
 
   add_index "issues", ["assigned_to_id"], :name => "index_issues_on_assigned_to_id"
@@ -247,6 +252,7 @@ ActiveRecord::Schema.define(:version => 20091227112908) do
   add_index "issues", ["fixed_version_id"], :name => "index_issues_on_fixed_version_id"
   add_index "issues", ["priority_id"], :name => "index_issues_on_priority_id"
   add_index "issues", ["project_id"], :name => "issues_project_id"
+  add_index "issues", ["root_id", "lft", "rgt"], :name => "index_issues_on_root_id_and_lft_and_rgt"
   add_index "issues", ["status_id"], :name => "index_issues_on_status_id"
   add_index "issues", ["tracker_id"], :name => "index_issues_on_tracker_id"
 
@@ -339,11 +345,6 @@ ActiveRecord::Schema.define(:version => 20091227112908) do
     t.integer "timestamp",  :null => false
     t.string  "server_url"
     t.string  "salt",       :null => false
-  end
-
-  create_table "plugin_schema_info", :id => false, :force => true do |t|
-    t.string  "plugin_name"
-    t.integer "version"
   end
 
   create_table "projects", :force => true do |t|

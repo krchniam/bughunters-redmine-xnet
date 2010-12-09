@@ -33,21 +33,22 @@ module Redmine
         end
 
         def branches
-          branches = []
-          cmd = "#{GIT_BIN} --git-dir #{target('')} branch"
+          return @branches if @branches
+          @branches = []
+          cmd = "#{GIT_BIN} --git-dir #{target('')} branch --no-color"
           shellout(cmd) do |io|
             io.each_line do |line|
-              branches << line.match('\s*\*?\s*(.*)$')[1]
+              @branches << line.match('\s*\*?\s*(.*)$')[1]
             end
           end
-          branches.sort!
+          @branches.sort!
         end
 
         def tags
-          tags = []
+          return @tags if @tags
           cmd = "#{GIT_BIN} --git-dir #{target('')} tag"
           shellout(cmd) do |io|
-            io.readlines.sort!.map{|t| t.strip}
+            @tags = io.readlines.sort!.map{|t| t.strip}
           end
         end
 
@@ -64,7 +65,7 @@ module Redmine
           shellout(cmd)  do |io|
             io.each_line do |line|
               e = line.chomp.to_s
-              if e =~ /^\d+\s+(\w+)\s+([0-9a-f]{40})\s+([0-9-]+)\s+(.+)$/
+              if e =~ /^\d+\s+(\w+)\s+([0-9a-f]{40})\s+([0-9-]+)\t(.+)$/
                 type = $1
                 sha = $2
                 size = $3
@@ -85,15 +86,15 @@ module Redmine
 
         def lastrev(path,rev)
           return nil if path.nil?
-          cmd = "#{GIT_BIN} --git-dir #{target('')} log --pretty=fuller --no-merges -n 1 "
+          cmd = "#{GIT_BIN} --git-dir #{target('')} log --no-color --date=iso --pretty=fuller --no-merges -n 1 "
           cmd << " #{shell_quote rev} " if rev 
-          cmd <<  "-- #{path} " unless path.empty?
+          cmd <<  "-- #{shell_quote path} " unless path.empty?
           shellout(cmd) do |io|
             begin
               id = io.gets.split[1]
               author = io.gets.match('Author:\s+(.*)$')[1]
               2.times { io.gets }
-              time = io.gets.match('CommitDate:\s+(.*)$')[1]
+              time = Time.parse(io.gets.match('CommitDate:\s+(.*)$')[1]).localtime
 
               Revision.new({
                 :identifier => id,
@@ -110,21 +111,17 @@ module Redmine
           end
         end
 
-        def num_revisions
-          cmd = "#{GIT_BIN} --git-dir #{target('')} log --all --pretty=format:'' | wc -l"
-          shellout(cmd) {|io| io.gets.chomp.to_i + 1}
-        end
-
         def revisions(path, identifier_from, identifier_to, options={})
           revisions = Revisions.new
 
-          cmd = "#{GIT_BIN} --git-dir #{target('')} log --find-copies-harder --raw --date=iso --pretty=fuller"
-          cmd << " --reverse" if options[:reverse]
-          cmd << " --all" if options[:all]
+          cmd = "#{GIT_BIN} --git-dir #{target('')} log --no-color --raw --date=iso --pretty=fuller "
+          cmd << " --reverse " if options[:reverse]
+          cmd << " --all " if options[:all]
           cmd << " -n #{options[:limit]} " if options[:limit]
-          cmd << " #{shell_quote(identifier_from + '..')} " if identifier_from
-          cmd << " #{shell_quote identifier_to} " if identifier_to
-          cmd << " -- #{path}" if path && !path.empty?
+          cmd << "#{shell_quote(identifier_from + '..')}" if identifier_from
+          cmd << "#{shell_quote identifier_to}" if identifier_to
+          cmd << " --since=#{shell_quote(options[:since].strftime("%Y-%m-%d %H:%M:%S"))}" if options[:since]
+          cmd << " -- #{shell_quote path}" if path && !path.empty?
 
           shellout(cmd) do |io|
             files=[]
@@ -168,13 +165,13 @@ module Redmine
                 parsing_descr = 1
                 changeset[:description] = ""
               elsif (parsing_descr == 1 || parsing_descr == 2) \
-              && line =~ /^:\d+\s+\d+\s+[0-9a-f.]+\s+[0-9a-f.]+\s+(\w)\s+(.+)$/
+              && line =~ /^:\d+\s+\d+\s+[0-9a-f.]+\s+[0-9a-f.]+\s+(\w)\t(.+)$/
                 parsing_descr = 2
                 fileaction = $1
                 filepath = $2
                 files << {:action => fileaction, :path => filepath}
               elsif (parsing_descr == 1 || parsing_descr == 2) \
-              && line =~ /^:\d+\s+\d+\s+[0-9a-f.]+\s+[0-9a-f.]+\s+(\w)\d+\s+(\S+)\s+(.+)$/
+              && line =~ /^:\d+\s+\d+\s+[0-9a-f.]+\s+[0-9a-f.]+\s+(\w)\d+\s+(\S+)\t(.+)$/
                 parsing_descr = 2
                 fileaction = $1
                 filepath = $3
@@ -212,9 +209,9 @@ module Redmine
           path ||= ''
 
           if identifier_to
-            cmd = "#{GIT_BIN} --git-dir #{target('')} diff #{shell_quote identifier_to} #{shell_quote identifier_from}" 
+            cmd = "#{GIT_BIN} --git-dir #{target('')} diff --no-color #{shell_quote identifier_to} #{shell_quote identifier_from}" 
           else
-            cmd = "#{GIT_BIN} --git-dir #{target('')} show #{shell_quote identifier_from}"
+            cmd = "#{GIT_BIN} --git-dir #{target('')} show --no-color #{shell_quote identifier_from}"
           end
 
           cmd << " -- #{shell_quote path}" unless path.empty?
@@ -230,16 +227,26 @@ module Redmine
         
         def annotate(path, identifier=nil)
           identifier = 'HEAD' if identifier.blank?
-          cmd = "#{GIT_BIN} --git-dir #{target('')} blame -l #{shell_quote identifier} -- #{shell_quote path}"
+          cmd = "#{GIT_BIN} --git-dir #{target('')} blame -p #{shell_quote identifier} -- #{shell_quote path}"
           blame = Annotate.new
           content = nil
           shellout(cmd) { |io| io.binmode; content = io.read }
           return nil if $? && $?.exitstatus != 0
           # git annotates binary files
           return nil if content.is_binary_data?
+          identifier = ''
+          # git shows commit author on the first occurrence only
+          authors_by_commit = {}
           content.split("\n").each do |line|
-            next unless line =~ /([0-9a-f]{39,40})\s\((\w*)[^\)]*\)(.*)/
-            blame.add_line($3.rstrip, Revision.new(:identifier => $1, :author => $2.strip))
+            if line =~ /^([0-9a-f]{39,40})\s.*/
+              identifier = $1
+            elsif line =~ /^author (.+)/
+              authors_by_commit[identifier] = $1.strip
+            elsif line =~ /^\t(.*)/
+              blame.add_line($1, Revision.new(:identifier => identifier, :author => authors_by_commit[identifier]))
+              identifier = ''
+              author = ''
+            end
           end
           blame
         end
@@ -248,7 +255,7 @@ module Redmine
           if identifier.nil?
             identifier = 'HEAD'
           end
-          cmd = "#{GIT_BIN} --git-dir #{target('')} show #{shell_quote(identifier + ':' + path)}"
+          cmd = "#{GIT_BIN} --git-dir #{target('')} show --no-color #{shell_quote(identifier + ':' + path)}"
           cat = nil
           shellout(cmd) do |io|
             io.binmode

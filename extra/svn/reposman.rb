@@ -180,7 +180,9 @@ rescue LoadError
   log("This script requires activeresource.\nRun 'gem install activeresource' to install it.", :exit => true)
 end
 
-class Project < ActiveResource::Base; end
+class Project < ActiveResource::Base
+  self.headers["User-agent"] = "Redmine repository manager/#{Version}"
+end
 
 log("querying Redmine for projects...", :level => 1);
 
@@ -221,9 +223,13 @@ def other_read_right?(file)
 end
 
 def owner_name(file)
-  RUBY_PLATFORM =~ /mswin/ ?
+  mswin? ?
     $svn_owner :
     Etc.getpwuid( File.stat(file).uid ).name  
+end
+  
+def mswin?
+  (RUBY_PLATFORM =~ /(:?mswin|mingw)/) || (RUBY_PLATFORM == 'java' && (ENV['OS'] || ENV['os']) =~ /windows/i)
 end
 
 projects.each do |project|
@@ -303,4 +309,4 @@ projects.each do |project|
   end
 
 end
-
+  

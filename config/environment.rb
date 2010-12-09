@@ -32,7 +32,7 @@ Rails::Initializer.run do |config|
 
   # Enable page/fragment caching by setting a file-based store
   # (remember to create the caching directory and make it readable to the application)
-  # config.action_controller.fragment_cache_store = :file_store, "#{RAILS_ROOT}/cache"
+  # config.action_controller.cache_store = :file_store, "#{RAILS_ROOT}/tmp/cache"
   
   # Activate observers that should always be running
   # config.active_record.observers = :cacher, :garbage_collector
@@ -56,5 +56,5 @@ Rails::Initializer.run do |config|
   # (e.g. gems, patches).
   if File.exists?(File.join(File.dirname(__FILE__), 'additional_environment.rb'))
     instance_eval File.read(File.join(File.dirname(__FILE__), 'additional_environment.rb'))
-  end  
+  end
 end

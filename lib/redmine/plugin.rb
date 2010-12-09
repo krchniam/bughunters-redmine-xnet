@@ -89,6 +89,13 @@ module Redmine #:nodoc:
     def self.clear
       @registered_plugins = {}
     end
+
+    # Checks if a plugin is installed
+    #
+    # @param [String] id name of the plugin
+    def self.installed?(id)
+      registered_plugins[id.to_sym].present?
+    end
     
     def initialize(id)
       @id = id.to_sym
@@ -202,10 +209,10 @@ module Redmine #:nodoc:
     #   permission :say_hello, { :example => :say_hello }
     #   
     #   # A permission that can be given to registered users only
-    #   permission :say_hello, { :example => :say_hello }, :require => loggedin
+    #   permission :say_hello, { :example => :say_hello }, :require => :loggedin
     #   
     #   # A permission that can be given to project members only
-    #   permission :say_hello, { :example => :say_hello }, :require => member
+    #   permission :say_hello, { :example => :say_hello }, :require => :member
     def permission(name, actions, options = {})
       if @project_module
         Redmine::AccessControl.map {|map| map.project_module(@project_module) {|map|map.permission(name, actions, options)}}

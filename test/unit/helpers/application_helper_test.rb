@@ -17,20 +17,38 @@
 
 require File.dirname(__FILE__) + '/../../test_helper'
 
-class ApplicationHelperTest < HelperTestCase
-  include ApplicationHelper
-  include ActionView::Helpers::TextHelper
-  include ActionView::Helpers::DateHelper
+class ApplicationHelperTest < ActionView::TestCase
   
   fixtures :projects, :roles, :enabled_modules, :users,
                       :repositories, :changesets, 
                       :trackers, :issue_statuses, :issues, :versions, :documents,
                       :wikis, :wiki_pages, :wiki_contents,
                       :boards, :messages,
-                      :attachments
+                      :attachments,
+                      :enumerations
 
   def setup
     super
+  end
+
+  context "#link_to_if_authorized" do
+    context "authorized user" do
+      should "be tested"
+    end
+    
+    context "unauthorized user" do
+      should "be tested"
+    end
+    
+    should "allow using the :controller and :action for the target link" do
+      User.current = User.find_by_login('admin')
+
+      @project = Issue.first.project # Used by helper
+      response = link_to_if_authorized("By controller/action",
+                                       {:controller => 'issues', :action => 'edit', :id => Issue.first.id})
+      assert_match /href/, response
+    end
+    
   end
   
   def test_auto_links
@@ -59,12 +77,16 @@ class ApplicationHelperTest < HelperTestCase
       'sftp://foo.bar' => '<a class="external" href="sftp://foo.bar">sftp://foo.bar</a>',
       # two exclamation marks
       'http://example.net/path!602815048C7B5C20!302.html' => '<a class="external" href="http://example.net/path!602815048C7B5C20!302.html">http://example.net/path!602815048C7B5C20!302.html</a>',
+      # escaping
+      'http://foo"bar' => '<a class="external" href="http://foo&quot;bar">http://foo"bar</a>',
+      # wrap in angle brackets
+      '<http://foo.bar>' => '&lt;<a class="external" href="http://foo.bar">http://foo.bar</a>&gt;'
     }
     to_test.each { |text, result| assert_equal "<p>#{result}</p>", textilizable(text) }
   end
   
   def test_auto_mailto
-    assert_equal '<p><a href="mailto:test@foo.bar" class="email">test@foo.bar</a></p>', 
+    assert_equal '<p><a class="email" href="mailto:test@foo.bar">test@foo.bar</a></p>', 
       textilizable('test@foo.bar')
   end
   
@@ -129,6 +151,8 @@ RAW
       "\"system administrator\":mailto:sysadmin@example.com?subject=redmine%20permissions" => "<a href=\"mailto:sysadmin@example.com?subject=redmine%20permissions\">system administrator</a>",
       # two exclamation marks
       '"a link":http://example.net/path!602815048C7B5C20!302.html' => '<a href="http://example.net/path!602815048C7B5C20!302.html" class="external">a link</a>',
+      # escaping
+      '"test":http://foo"bar' => '<a href="http://foo&quot;bar" class="external">test</a>',
     }
     to_test.each { |text, result| assert_equal "<p>#{result}</p>", textilizable(text) }
   end
@@ -150,12 +174,14 @@ RAW
 
     message_url = {:controller => 'messages', :action => 'show', :board_id => 1, :id => 4}
     
+    project_url = {:controller => 'projects', :action => 'show', :id => 'subproject1'}
+    
     source_url = {:controller => 'repositories', :action => 'entry', :id => 'ecookbook', :path => ['some', 'file']}
     source_url_with_ext = {:controller => 'repositories', :action => 'entry', :id => 'ecookbook', :path => ['some', 'file.ext']}
     
     to_test = {
       # tickets
-      '#3, #3 and #3.'              => "#{issue_link}, #{issue_link} and #{issue_link}.",
+      '#3, [#3], (#3) and #3.'      => "#{issue_link}, [#{issue_link}], (#{issue_link}) and #{issue_link}.",
       # changesets
       'r1'                          => changeset_link,
       'r1.'                         => "#{changeset_link}.",
@@ -184,6 +210,10 @@ RAW
       # message
       'message#4'                   => link_to('Post 2', message_url, :class => 'message'),
       'message#5'                   => link_to('RE: post 2', message_url.merge(:anchor => 'message-5'), :class => 'message'),
+      # project
+      'project#3'                   => link_to('eCookbook Subproject 1', project_url, :class => 'project'),
+      'project:subproject1'         => link_to('eCookbook Subproject 1', project_url, :class => 'project'),
+      'project:"eCookbook subProject 1"'        => link_to('eCookbook Subproject 1', project_url, :class => 'project'),
       # escaping
       '!#3.'                        => '#3.',
       '!r1'                         => 'r1',
@@ -193,13 +223,23 @@ RAW
       '!version:1.0'                => 'version:1.0',
       '!version:"1.0"'              => 'version:"1.0"',
       '!source:/some/file'          => 'source:/some/file',
+      # not found
+      '#0123456789'                 => '#0123456789',
       # invalid expressions
       'source:'                     => 'source:',
       # url hash
       "http://foo.bar/FAQ#3"       => '<a class="external" href="http://foo.bar/FAQ#3">http://foo.bar/FAQ#3</a>',
     }
     @project = Project.find(1)
-    to_test.each { |text, result| assert_equal "<p>#{result}</p>", textilizable(text) }
+    to_test.each { |text, result| assert_equal "<p>#{result}</p>", textilizable(text), "#{text} failed" }
+  end
+  
+  def test_attachment_links
+    attachment_link = link_to('error281.txt', {:controller => 'attachments', :action => 'download', :id => '1'}, :class => 'attachment')
+    to_test = {
+      'attachment:error281.txt'      => attachment_link
+    }
+    to_test.each { |text, result| assert_equal "<p>#{result}</p>", textilizable(text, :attachments => Issue.find(3).attachments), "#{text} failed" }
   end
   
   def test_wiki_links
@@ -280,16 +320,57 @@ EXPECTED
     assert_equal expected.gsub(%r{[\r\n\t]}, ''), textilizable(raw).gsub(%r{[\r\n\t]}, '')
   end
   
+  def test_pre_content_should_not_parse_wiki_and_redmine_links
+    raw = <<-RAW
+[[CookBook documentation]]
+  
+#1
+
+<pre>
+[[CookBook documentation]]
+  
+#1
+</pre>
+RAW
+
+    expected = <<-EXPECTED
+<p><a href="/projects/ecookbook/wiki/CookBook_documentation" class="wiki-page">CookBook documentation</a></p>
+<p><a href="/issues/1" class="issue status-1 priority-1" title="Can't print recipes (New)">#1</a></p>
+<pre>
+[[CookBook documentation]]
+
+#1
+</pre>
+EXPECTED
+                                 
+    @project = Project.find(1)
+    assert_equal expected.gsub(%r{[\r\n\t]}, ''), textilizable(raw).gsub(%r{[\r\n\t]}, '')
+  end
+  
+  def test_non_closing_pre_blocks_should_be_closed
+    raw = <<-RAW
+<pre><code>
+RAW
+
+    expected = <<-EXPECTED
+<pre><code>
+</code></pre>
+EXPECTED
+                                 
+    @project = Project.find(1)
+    assert_equal expected.gsub(%r{[\r\n\t]}, ''), textilizable(raw).gsub(%r{[\r\n\t]}, '')
+  end
+  
   def test_syntax_highlight
     raw = <<-RAW
 <pre><code class="ruby">
 # Some ruby code here
-</pre></code>
+</code></pre>
 RAW
 
     expected = <<-EXPECTED
-<pre><code class="ruby CodeRay"><span class="no">1</span> <span class="c"># Some ruby code here</span>
-</pre></code>
+<pre><code class="ruby syntaxhl"><span class=\"CodeRay\"><span class="no">1</span> <span class="c"># Some ruby code here</span></span>
+</code></pre>
 EXPECTED
 
     assert_equal expected.gsub(%r{[\r\n\t]}, ''), textilizable(raw).gsub(%r{[\r\n\t]}, '')
@@ -358,6 +439,10 @@ h2. Subtitle with %{color:red}red text%
 
 h1. Another title
 
+h2. An "Internet link":http://www.redmine.org/ inside subtitle
+
+h2. "Project Name !/attachments/1234/logo_small.gif! !/attachments/5678/logo_2.png!":/projects/projectname/issues
+
 RAW
 
     expected = '<ul class="toc">' +
@@ -366,8 +451,10 @@ RAW
                '<li class="heading2"><a href="#Subtitle-with-another-Wiki-link">Subtitle with another Wiki link</a></li>' + 
                '<li class="heading2"><a href="#Subtitle-with-red-text">Subtitle with red text</a></li>' +
                '<li class="heading1"><a href="#Another-title">Another title</a></li>' +
+               '<li class="heading2"><a href="#An-Internet-link-inside-subtitle">An Internet link inside subtitle</a></li>' +
+               '<li class="heading2"><a href="#Project-Name">Project Name</a></li>' +
                '</ul>'
-               
+
     assert textilizable(raw).gsub("\n", "").include?(expected)
   end
   
@@ -528,5 +615,17 @@ EXPECTED
     assert user.anonymous?
     t = link_to_user(user)
     assert_equal ::I18n.t(:label_user_anonymous), t
+  end
+
+  def test_link_to_project
+    project = Project.find(1)
+    assert_equal %(<a href="/projects/ecookbook">eCookbook</a>),
+                 link_to_project(project)
+    assert_equal %(<a href="/projects/ecookbook/settings">eCookbook</a>),
+                 link_to_project(project, :action => 'settings')
+    assert_equal %(<a href="http://test.host/projects/ecookbook?jump=blah">eCookbook</a>),
+                 link_to_project(project, {:only_path => false, :jump => 'blah'})
+    assert_equal %(<a href="/projects/ecookbook/settings" class="project">eCookbook</a>),
+                 link_to_project(project, {:action => 'settings'}, :class => "project")
   end
 end
