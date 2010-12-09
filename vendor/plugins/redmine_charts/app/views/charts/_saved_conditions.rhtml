@@ -1,0 +1,27 @@
+<% if @saved_condition %>
+  <fieldset id="saved_condition_update" class="">
+    <legend><%= l(:charts_saved_condition_label) %></legend>
+    <div>
+      <label for="saved_condition_update_name"><%= l(:charts_saved_condition_name) %></label>
+      <%= text_field_tag "saved_condition_update_name", @saved_condition.name, { :class => "select-small" } %>
+      <label for="saved_condition_update_project_id"><%= l(:charts_saved_condition_project_id) %></label>
+      <%= check_box_tag 'saved_condition_update_project_id', @project.id, @saved_condition.project_id == @project.id %>
+      <%= tag :input, "type" => "button", "name" => "commit", "value" => l(:button_update), :onclick => "$('chart_form_action').value = 'saved_condition_update'; $('chart_form').submit(); return false;" %>
+      <%= tag :input, "type" => "button", "name" => "commit", "value" => l(:button_cancel), :onclick => "$('saved_condition_update').hide(); return false;" %>
+    </div>
+  </fieldset>
+  <script type="text/javascript">$('saved_condition_update').hide();</script>
+<% end %>
+
+<fieldset id="saved_condition_create" class="">
+  <legend><%= l(:charts_saved_condition_label) %></legend>
+  <div>
+    <label for="saved_condition_create_name"><%= l(:charts_saved_condition_name) %></label>
+    <%= text_field_tag "saved_condition_create_name", "", { :class => "select-small" } %>
+    <label for="saved_condition_create_project_id"><%= l(:charts_saved_condition_project_id) %></label>
+    <%= check_box_tag 'saved_condition_create_project_id', @project.id, false %>
+    <%= tag :input, "type" => "button", "name" => "commit", "value" => l(:button_save), :onclick => "$('chart_form_action').value = 'saved_condition_create'; $('chart_form').submit(); return false;" %>
+    <%= tag :input, "type" => "button", "name" => "commit", "value" => l(:button_cancel), :onclick => "$('saved_condition_create').hide(); return false;" %>
+  </div>
+</fieldset>
+<script type="text/javascript">$('saved_condition_create').hide();</script>

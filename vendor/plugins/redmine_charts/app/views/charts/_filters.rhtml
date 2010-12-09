@@ -1,0 +1,70 @@
+<script type="text/javascript">
+//<![CDATA[
+function add_filter() {
+    select = $('add_filter_select');
+    field = select.value
+    Element.show('tr_' +  field);
+    check_box = $('cb_' + field);
+    check_box.checked = true;
+    toggle_filter(field);
+    select.selectedIndex = 0;
+
+    for (i=0; i<select.options.length; i++) {
+        if (select.options[i].value == field) {
+            select.options[i].disabled = true;
+        }
+    }
+}
+
+function toggle_filter(field) {
+    check_box = $('cb_' + field);
+    values = $('values_' + field);
+    if (check_box.checked) {
+      Element.show('tr_' + field)
+      values.enable();
+    } else {
+      Element.hide('tr_' + field)
+      values.disable();
+    }
+}
+//]]>
+</script>
+
+<table width="100%"><tr><td><table>
+  <% unless @grouping_options.empty? %>
+    <tr><td style="width:200px;"><label for="grouping"><%= l(:charts_group_by) %></label></td>
+    <td><%= select_tag :grouping, options_for_select(@grouping_options, @grouping), { :class => "select-small", :style => "width:200px" } %></td></tr>
+  <% end %>
+  <% @textconditions_options.each do |condition| %>
+    <tr id="<%= "tr_#{condition[0]}" %>" class="filter"><td style="width:200px;">
+      <%= check_box_tag 'fields[]', condition[0], @conditions[condition[0].to_sym], :onclick => "toggle_filter('#{condition[0]}');", :id => "cb_#{condition[0]}" %>
+      <label for="<%= "cb_#{condition[0]}" %>"><%= l("charts_condition_#{condition[0]}".gsub(".","_").to_sym) %></label>
+    </td>
+    <td><%= text_field_tag condition[0].to_sym, @conditions[condition[0].to_sym].blank? ? nil : @conditions[condition[0].to_sym], { :class => "select-small", :id => "values_#{condition[0]}" } %></td></tr>
+    <script type="text/javascript">toggle_filter('<%= condition[0] %>');</script>
+  <% end %>
+  <% @conditions_options.each do |condition| %>
+    <tr id="<%= "tr_#{condition[0]}" %>" class="filter"><td style="width:200px;">
+      <%= check_box_tag 'fields[]', condition[0], @conditions[condition[0].to_sym], :onclick => "toggle_filter('#{condition[0]}');", :id => "cb_#{condition[0]}" %>
+      <label for="<%= "cb_#{condition[0]}" %>"><%= l("charts_condition_#{condition[0]}".gsub(".","_").to_sym) %></label>
+    </td>
+    <td><% unless condition[1].nil? %>
+      <%= select_tag condition[0].to_sym, options_for_select(condition[1], @conditions[condition[0].to_sym]), { :class => "select-small", :style => "width:200px", :id => "values_#{condition[0]}" } %>
+    <% end %></td></tr>
+    <script type="text/javascript">toggle_filter('<%= condition[0] %>');</script>
+  <% end %>
+  <% @multiconditions_options.each do |condition| %>
+    <tr id="<%= "tr_#{condition[0]}" %>" class="filter"><td style="width:200px;">
+      <%= check_box_tag 'fields[]', condition[0], @conditions[condition[0].to_sym], :onclick => "toggle_filter('#{condition[0]}');", :id => "cb_#{condition[0]}" %>
+      <label for="<%= "cb_#{condition[0]}" %>"><%= l("charts_condition_#{condition[0]}".gsub(".","_").to_sym) %></label>
+    </td>
+    <td><% unless condition[1].nil? %>
+      <%= select_tag condition[0].to_sym, options_for_select(condition[1], @conditions[condition[0].to_sym]), {:multiple => true, :class => "select-small", :style => "width:200px", :id => "values_#{condition[0]}"} %>
+    <% end %></td></tr>
+    <script type="text/javascript">toggle_filter('<%= condition[0] %>');</script>
+  <% end %>
+</table></td><td class="add-filter">
+  <%= l(:label_filter_add) %>:
+
+  <%= select_tag 'add_filter_select', options_for_select([["",""]] + @all_conditions_options.collect { |c| [ l("charts_condition_#{c[0]}".gsub(".","_").to_sym), c[0] ] }), :onchange => "add_filter();", :class => "select-small", :name => nil %>
+  </td></tr></table>
